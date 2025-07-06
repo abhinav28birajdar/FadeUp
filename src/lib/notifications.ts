@@ -1,57 +1,63 @@
-// src/lib/notifications.ts
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-// Set notification handler to show notifications when app is foregrounded
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
-
+/**
+ * Register for push notifications and return the token
+ * @returns ExpoPushToken or null if registration failed
+ */
 export async function registerForPushNotificationsAsync() {
-  let token;
+  // Check if we're running on a physical device
+  if (Platform.OS === 'web') {
+    console.log('Push notifications are not supported on web');
+    return null;
+  }
 
+  // Request permission
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+  
+  if (finalStatus !== 'granted') {
+    console.log('Failed to get push token for push notification!');
+    return null;
+  }
+  
+  // Create notification channel for Android
   if (Platform.OS === 'android') {
     Notifications.setNotificationChannelAsync('default', {
       name: 'default',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
+      lightColor: '#8B5CF6', // accent-primary
     });
   }
-
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== 'granted') {
-    alert('Failed to get push token for push notification!');
-    return;
-  }
-  token = (await Notifications.getExpoPushTokenAsync()).data;
-  console.log('Expo Push Token:', token);
-
-  // Send this token to your backend (Supabase functions/database)
-  // to associate it with the user for targeted notifications.
-  // E.g., insert into a 'user_expo_tokens' table with user_id and token.
+  
+  // Get the token
+  const token = (await Notifications.getExpoPushTokenAsync()).data;
   return token;
 }
 
-// Function to send a notification (typically from a backend server)
-// For local testing, you can use Expo's Push Tool (push.expo.dev)
-// or simulate sending from a client for testing (not for production):
-export async function sendPushNotification(expoPushToken: string, title: string, body: string) {
+/**
+ * Send a push notification
+ * Note: This should ideally be triggered by a Firebase Cloud Function (server-side)
+ * This implementation is for demonstration purposes only
+ */
+export async function sendPushNotification(
+  expoPushToken: string,
+  title: string,
+  body: string,
+  data: object = {}
+) {
   const message = {
     to: expoPushToken,
     sound: 'default',
     title,
     body,
-    data: { someData: 'goes here' },
+    data,
   };
 
   await fetch('https://exp.host/--/api/v2/push/send', {
