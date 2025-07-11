@@ -1,256 +1,353 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, Pressable, Alert, ActivityIndicator, ScrollView } from 'react-native';
-import { router } from 'expo-router';
-import { MotiView } from 'moti';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, Timestamp } from 'firebase/firestore';
-
-import { auth, db } from '@/src/lib/firebase';
-import ModernCard from '@/src/components/ModernCard';
-import { useAuthStore } from '@/src/store/authStore';
+import { useState } from "react";
+import { View, Text, TextInput, Pressable, Alert, ActivityIndicator, ScrollView } from "react-native";
+import { useRouter } from "expo-router";
+import { MotiView } from "moti";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, Timestamp } from "firebase/firestore";
+import { auth, db, isDemoMode } from "@/lib/firebase";
+import { useAuthStore } from "@/store/authStore";
+import { UserProfile } from "@/types/firebaseModels";
+import ModernCard from "@/components/ModernCard";
 
 export default function RegisterScreen() {
-  const { role } = useAuthStore();
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const router = useRouter();
+  const { setFirebaseUser, setUser, setRole } = useAuthStore();
+  const selectedRole = useAuthStore((state) => state.role);
   
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  
+  // Input focus states for animations
   const [firstNameFocused, setFirstNameFocused] = useState(false);
   const [lastNameFocused, setLastNameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
-  
-  const [loading, setLoading] = useState(false);
-  const [registerPressed, setRegisterPressed] = useState(false);
-  const [loginPressed, setLoginPressed] = useState(false);
 
   const handleRegister = async () => {
+    if (isDemoMode) {
+      Alert.alert(
+        "Demo Mode",
+        "Firebase authentication is not configured. Please set up your Firebase environment variables.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
     // Validate inputs
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert("Error", "Please fill in all fields");
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      Alert.alert("Error", "Passwords do not match");
       return;
     }
 
     setLoading(true);
+
     try {
       // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
+      const firebaseUser = userCredential.user;
+      
+      // Ensure email is not null
+      if (!firebaseUser.email) {
+        throw new Error("Email is required");
+      }
+      
+      // Determine final role (default to customer if not selected)
+      const finalRole = selectedRole === "unauthenticated" ? "customer" : selectedRole;
+      
       // Create user profile in Firestore
-      await setDoc(doc(db, 'users', user.uid), {
-        email,
-        role,
+      const userData: UserProfile = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email,
         first_name: firstName,
         last_name: lastName,
+        role: finalRole,
         created_at: Timestamp.now(),
-      });
-
-      // If shopkeeper, we'll need to create a shop later
-      if (role === 'customer') {
-        router.replace('/(customer)/home');
-      } else if (role === 'shopkeeper') {
-        router.replace('/(shopkeeper)/dashboard');
+      };
+      
+      await setDoc(doc(db, "users", firebaseUser.uid), userData);
+      
+      // Update auth store
+      setFirebaseUser(firebaseUser);
+      setUser(userData);
+      setRole(finalRole);
+      
+      Alert.alert("Success", "Registration successful!");
+      
+      // Navigate to the appropriate screen
+      if (finalRole === "customer") {
+        router.replace("/(customer)/home");
+      } else if (finalRole === "shopkeeper") {
+        router.replace("/(shopkeeper)/dashboard");
       }
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      Alert.alert('Registration Failed', error.message || 'An error occurred during registration');
-      await auth.signOut();
+    } catch (error) {
+      console.error("Registration error:", error);
+      Alert.alert("Registration Failed", "An error occurred during registration. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <MotiView
-        from={{ opacity: 0, translateY: -20 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 600 }}
-      >
-        <Text style={[styles.title, { color: '#38BDF8', fontSize: 24, fontWeight: 'bold' }]}>
-          Register
-        </Text>
-      </MotiView>
-
-      <ModernCard style={{ width: '85%', maxWidth: 400 }} delay={200}>
+    <ScrollView 
+      contentContainerStyle={{ 
+        flexGrow: 1, 
+        justifyContent: "center", 
+        alignItems: "center", 
+        padding: 20 
+      }}
+    >
+      <ModernCard style={{ width: "100%", maxWidth: 400 }}>
         <MotiView
-          from={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ type: 'timing', duration: 600, delay: 300 }}
+          from={{ opacity: 0, translateY: -10 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "timing", duration: 500 }}
         >
-          <Text style={{ color: '#38BDF8', fontSize: 18, fontWeight: '600', marginBottom: 8 }}>First Name</Text>
-          <MotiView
-            animate={{ 
-              borderColor: firstNameFocused ? '#38BDF8' : '#52525B',
-              translateY: firstNameFocused ? -2 : 0
-            }}
-            transition={{ type: 'timing', duration: 200 }}
-            style={styles.inputContainer}
-          >
-            <TextInput
-              style={{ backgroundColor: 'rgba(24,24,27,0.5)', padding: 16, borderRadius: 12, color: '#38BDF8' }}
-              placeholder="Enter your first name"
-              placeholderTextColor="#A1A1AA"
-              value={firstName}
-              onChangeText={setFirstName}
-              onFocus={() => setFirstNameFocused(true)}
-              onBlur={() => setFirstNameFocused(false)}
-            />
-          </MotiView>
+          <Text style={{ 
+            fontSize: 32, 
+            fontWeight: "bold", 
+            color: "#F3F4F6", // text-primary-light
+            marginBottom: 24,
+            textAlign: "center"
+          }}>
+            Register
+          </Text>
+        </MotiView>
 
-          <Text style={{ color: '#38BDF8', fontSize: 18, fontWeight: '600', marginBottom: 8, marginTop: 16 }}>Last Name</Text>
+        {isDemoMode && (
           <MotiView
-            animate={{ 
-              borderColor: lastNameFocused ? '#38BDF8' : '#52525B',
-              translateY: lastNameFocused ? -2 : 0
-            }}
-            transition={{ type: 'timing', duration: 200 }}
-            style={styles.inputContainer}
+            from={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ type: "timing", duration: 500, delay: 200 }}
+            style={{ marginBottom: 16 }}
           >
-            <TextInput
-              style={{ backgroundColor: 'rgba(24,24,27,0.5)', padding: 16, borderRadius: 12, color: '#38BDF8' }}
-              placeholder="Enter your last name"
-              placeholderTextColor="#A1A1AA"
-              value={lastName}
-              onChangeText={setLastName}
-              onFocus={() => setLastNameFocused(true)}
-              onBlur={() => setLastNameFocused(false)}
-            />
+            <View style={{
+              backgroundColor: "rgba(249, 115, 22, 0.1)",
+              borderColor: "#F97316",
+              borderWidth: 1,
+              borderRadius: 8,
+              padding: 12,
+            }}>
+              <Text style={{ 
+                fontSize: 12, 
+                color: "#F97316", // text-status-pending
+                textAlign: "center"
+              }}>
+                Demo Mode: Authentication disabled
+              </Text>
+            </View>
           </MotiView>
+        )}
 
-          <Text style={{ color: '#38BDF8', fontSize: 18, fontWeight: '600', marginBottom: 8, marginTop: 16 }}>Email</Text>
-          <MotiView
-            animate={{ 
-              borderColor: emailFocused ? '#38BDF8' : '#52525B',
-              translateY: emailFocused ? -2 : 0
+        <MotiView
+          animate={{ 
+            borderColor: firstNameFocused ? "#38BDF8" : "#52525B" // accent-secondary : dark-border
+          }}
+          transition={{ type: "timing", duration: 200 }}
+          style={{
+            marginBottom: 16,
+            borderWidth: 1,
+            borderRadius: 12,
+            backgroundColor: "rgba(18, 18, 18, 0.5)", // bg-dark-background/50
+            padding: 16,
+          }}
+        >
+          <TextInput
+            placeholder="First Name"
+            placeholderTextColor="#A1A1AA" // text-secondary-light
+            value={firstName}
+            onChangeText={setFirstName}
+            onFocus={() => setFirstNameFocused(true)}
+            onBlur={() => setFirstNameFocused(false)}
+            style={{ 
+              color: "#F3F4F6", // text-primary-light
+              fontSize: 16,
             }}
-            transition={{ type: 'timing', duration: 200 }}
-            style={styles.inputContainer}
-          >
-            <TextInput
-              style={{ backgroundColor: 'rgba(24,24,27,0.5)', padding: 16, borderRadius: 12, color: '#38BDF8' }}
-              placeholder="Enter your email"
-              placeholderTextColor="#A1A1AA"
-              value={email}
-              onChangeText={setEmail}
-              onFocus={() => setEmailFocused(true)}
-              onBlur={() => setEmailFocused(false)}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </MotiView>
+          />
+        </MotiView>
 
-          <Text style={{ color: '#38BDF8', fontSize: 18, fontWeight: '600', marginBottom: 8, marginTop: 16 }}>Password</Text>
-          <MotiView
-            animate={{ 
-              borderColor: passwordFocused ? '#38BDF8' : '#52525B',
-              translateY: passwordFocused ? -2 : 0
+        <MotiView
+          animate={{ 
+            borderColor: lastNameFocused ? "#38BDF8" : "#52525B" // accent-secondary : dark-border
+          }}
+          transition={{ type: "timing", duration: 200 }}
+          style={{
+            marginBottom: 16,
+            borderWidth: 1,
+            borderRadius: 12,
+            backgroundColor: "rgba(18, 18, 18, 0.5)", // bg-dark-background/50
+            padding: 16,
+          }}
+        >
+          <TextInput
+            placeholder="Last Name"
+            placeholderTextColor="#A1A1AA" // text-secondary-light
+            value={lastName}
+            onChangeText={setLastName}
+            onFocus={() => setLastNameFocused(true)}
+            onBlur={() => setLastNameFocused(false)}
+            style={{ 
+              color: "#F3F4F6", // text-primary-light
+              fontSize: 16,
             }}
-            transition={{ type: 'timing', duration: 200 }}
-            style={styles.inputContainer}
-          >
-            <TextInput
-              style={{ backgroundColor: 'rgba(24,24,27,0.5)', padding: 16, borderRadius: 12, color: '#38BDF8' }}
-              placeholder="Enter your password"
-              placeholderTextColor="#A1A1AA"
-              value={password}
-              onChangeText={setPassword}
-              onFocus={() => setPasswordFocused(true)}
-              onBlur={() => setPasswordFocused(false)}
-              secureTextEntry
-            />
-          </MotiView>
+          />
+        </MotiView>
 
-          <Text style={{ color: '#38BDF8', fontSize: 18, fontWeight: '600', marginBottom: 8, marginTop: 16 }}>Confirm Password</Text>
-          <MotiView
-            animate={{ 
-              borderColor: confirmPasswordFocused ? '#38BDF8' : '#52525B',
-              translateY: confirmPasswordFocused ? -2 : 0
+        <MotiView
+          animate={{ 
+            borderColor: emailFocused ? "#38BDF8" : "#52525B" // accent-secondary : dark-border
+          }}
+          transition={{ type: "timing", duration: 200 }}
+          style={{
+            marginBottom: 16,
+            borderWidth: 1,
+            borderRadius: 12,
+            backgroundColor: "rgba(18, 18, 18, 0.5)", // bg-dark-background/50
+            padding: 16,
+          }}
+        >
+          <TextInput
+            placeholder="Email"
+            placeholderTextColor="#A1A1AA" // text-secondary-light
+            value={email}
+            onChangeText={setEmail}
+            onFocus={() => setEmailFocused(true)}
+            onBlur={() => setEmailFocused(false)}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={{ 
+              color: "#F3F4F6", // text-primary-light
+              fontSize: 16,
             }}
-            transition={{ type: 'timing', duration: 200 }}
-            style={styles.inputContainer}
-          >
-            <TextInput
-              style={{ backgroundColor: 'rgba(24,24,27,0.5)', padding: 16, borderRadius: 12, color: '#38BDF8' }}
-              placeholder="Confirm your password"
-              placeholderTextColor="#A1A1AA"
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              onFocus={() => setConfirmPasswordFocused(true)}
-              onBlur={() => setConfirmPasswordFocused(false)}
-              secureTextEntry
-            />
-          </MotiView>
+          />
+        </MotiView>
 
-          <Pressable
-            onPressIn={() => setRegisterPressed(true)}
-            onPressOut={() => setRegisterPressed(false)}
-            onPress={handleRegister}
-            disabled={loading}
-            style={({ pressed }) => [
-              pressed && styles.buttonPressed,
-              { marginTop: 24 }
-            ]}
-          >
-            <ModernCard 
-              style={{ backgroundColor: '#0EA5E9', paddingVertical: 16 }}
-              pressed={registerPressed}
+        <MotiView
+          animate={{ 
+            borderColor: passwordFocused ? "#38BDF8" : "#52525B" // accent-secondary : dark-border
+          }}
+          transition={{ type: "timing", duration: 200 }}
+          style={{
+            marginBottom: 16,
+            borderWidth: 1,
+            borderRadius: 12,
+            backgroundColor: "rgba(18, 18, 18, 0.5)", // bg-dark-background/50
+            padding: 16,
+          }}
+        >
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#A1A1AA" // text-secondary-light
+            value={password}
+            onChangeText={setPassword}
+            onFocus={() => setPasswordFocused(true)}
+            onBlur={() => setPasswordFocused(false)}
+            secureTextEntry
+            style={{ 
+              color: "#F3F4F6", // text-primary-light
+              fontSize: 16,
+            }}
+          />
+        </MotiView>
+
+        <MotiView
+          animate={{ 
+            borderColor: confirmPasswordFocused ? "#38BDF8" : "#52525B" // accent-secondary : dark-border
+          }}
+          transition={{ type: "timing", duration: 200 }}
+          style={{
+            marginBottom: 24,
+            borderWidth: 1,
+            borderRadius: 12,
+            backgroundColor: "rgba(18, 18, 18, 0.5)", // bg-dark-background/50
+            padding: 16,
+          }}
+        >
+          <TextInput
+            placeholder="Confirm Password"
+            placeholderTextColor="#A1A1AA" // text-secondary-light
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            onFocus={() => setConfirmPasswordFocused(true)}
+            onBlur={() => setConfirmPasswordFocused(false)}
+            secureTextEntry
+            style={{ 
+              color: "#F3F4F6", // text-primary-light
+              fontSize: 16,
+            }}
+          />
+        </MotiView>
+
+        <Pressable
+          onPress={handleRegister}
+          disabled={loading}
+          style={({ pressed }) => ({})}
+        >
+          {({ pressed }) => (
+            <MotiView
+              animate={{ scale: pressed ? 0.98 : 1 }}
+              transition={{ type: "timing", duration: 150 }}
+              style={{
+                backgroundColor: "#8B5CF6", // bg-accent-primary
+                paddingVertical: 16,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 3,
+                height: 56,
+              }}
             >
               {loading ? (
                 <ActivityIndicator color="#F3F4F6" />
               ) : (
-                <Text style={{ color: '#F3F4F6', textAlign: 'center', fontSize: 18, fontWeight: '600' }}>Register</Text>
+                <Text style={{ 
+                  fontSize: 18, 
+                  fontWeight: "bold", 
+                  color: "#F3F4F6" // text-primary-light
+                }}>
+                  Register
+                </Text>
               )}
-            </ModernCard>
-          </Pressable>
+            </MotiView>
+          )}
+        </Pressable>
 
-          <Pressable
-            onPressIn={() => setLoginPressed(true)}
-            onPressOut={() => setLoginPressed(false)}
-            onPress={() => router.push('/(auth)/login')}
-            style={({ pressed }) => [
-              pressed && styles.buttonPressed,
-              { marginTop: 16, marginBottom: 8 }
-            ]}
-          >
-            <Text style={{ color: '#38BDF8', textAlign: 'center', paddingVertical: 8 }}>Already have an account? Login</Text>
-          </Pressable>
-        </MotiView>
+        <Pressable
+          onPress={() => router.push("/login")}
+          style={({ pressed }) => ({ marginTop: 16 })}
+        >
+          {({ pressed }) => (
+            <MotiView
+              animate={{ scale: pressed ? 0.98 : 1 }}
+              transition={{ type: "timing", duration: 150 }}
+              style={{
+                alignItems: "center",
+                padding: 8,
+              }}
+            >
+              <Text style={{ 
+                fontSize: 16, 
+                color: "#38BDF8", // text-accent-secondary
+              }}>
+                Already have an account? Login
+              </Text>
+            </MotiView>
+          )}
+        </Pressable>
       </ModernCard>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  title: {
-    marginBottom: 30,
-  },
-  inputContainer: {
-    borderWidth: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  buttonPressed: {
-    opacity: 0.9,
-  },
-});

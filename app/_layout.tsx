@@ -53,7 +53,7 @@ export default function RootLayout() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [clearAuth, setFirebaseUser, setUser]);
 
   useEffect(() => {
     if (appReady) {
@@ -71,7 +71,7 @@ export default function RootLayout() {
         router.replace('/(auth)/role-select');
       }
     }
-  }, [appReady, firebaseUser, user, role]);
+  }, [appReady, firebaseUser, user, role, clearAuth, setFirebaseUser, setUser]);
 
   if (!appReady) {
     return null;

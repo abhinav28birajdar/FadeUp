@@ -1,83 +1,152 @@
-import { StyleSheet, Text, View, Pressable } from 'react-native';
-import { router } from 'expo-router';
-import { MotiView } from 'moti';
-import { useState } from 'react';
-
-import { useAuthStore } from '@/src/store/authStore';
-import ModernCard from '@/src/components/ModernCard';
-import { UserRole } from '@/src/types/firebaseModels';
+import { View, Text, Pressable, Alert } from "react-native";
+import { useRouter } from "expo-router";
+import { MotiView } from "moti";
+import { useAuthStore } from "@/store/authStore";
+import ModernCard from "@/components/ModernCard";
+import { isDemoMode } from "@/lib/firebase";
 
 export default function RoleSelectScreen() {
+  const router = useRouter();
   const { setRole } = useAuthStore();
-  const [customerPressed, setCustomerPressed] = useState(false);
-  const [shopkeeperPressed, setShopkeeperPressed] = useState(false);
 
-  const handleRoleSelect = (role: UserRole) => {
+  const handleRoleSelect = (role: "customer" | "shopkeeper") => {
+    if (isDemoMode) {
+      Alert.alert(
+        "Demo Mode",
+        "Firebase is not configured. Please set up your Firebase environment variables to use authentication features.",
+        [
+          { text: "Continue Anyway", onPress: () => {
+            setRole(role);
+            router.push("/login");
+          }},
+          { text: "Cancel", style: "cancel" }
+        ]
+      );
+      return;
+    }
+    
     setRole(role);
-    router.push('/(auth)/login');
+    router.push("/login");
   };
 
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
       <MotiView
-        from={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: 'timing', duration: 800 }}
+        from={{ opacity: 0, translateY: -20 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: "timing", duration: 600 }}
       >
-        <Text style={[styles.title, { color: '#38BDF8', fontSize: 32, fontWeight: 'bold' }]}>
+        <Text style={{ 
+          fontSize: 48, 
+          fontWeight: "bold", 
+          color: "#F3F4F6", // text-primary-light
+          marginBottom: 40,
+          textAlign: "center"
+        }}>
           FadeUp
         </Text>
       </MotiView>
 
-      <ModernCard style={{ width: '85%', maxWidth: 400 }} delay={300}>
-        <Text style={{ color: '#38BDF8', fontSize: 20, fontWeight: '600', marginBottom: 24, textAlign: 'center' }}>I am a...</Text>
+      {isDemoMode && (
+        <MotiView
+          from={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ type: "timing", duration: 800, delay: 200 }}
+          style={{ marginBottom: 20 }}
+        >
+          <ModernCard style={{ backgroundColor: "rgba(249, 115, 22, 0.1)", borderColor: "#F97316" }}>
+            <Text style={{ 
+              fontSize: 14, 
+              color: "#F97316", // text-status-pending
+              textAlign: "center",
+              marginBottom: 8
+            }}>
+              ⚠️ Demo Mode
+            </Text>
+            <Text style={{ 
+              fontSize: 12, 
+              color: "#A1A1AA", // text-secondary-light
+              textAlign: "center"
+            }}>
+              Firebase not configured. Authentication will not work.
+            </Text>
+          </ModernCard>
+        </MotiView>
+      )}
+
+      <ModernCard>
+        <Text style={{ 
+          fontSize: 24, 
+          fontWeight: "bold", 
+          color: "#F3F4F6", // text-primary-light
+          marginBottom: 20,
+          textAlign: "center"
+        }}>
+          I am a...
+        </Text>
 
         <Pressable
-          onPressIn={() => setCustomerPressed(true)}
-          onPressOut={() => setCustomerPressed(false)}
-          onPress={() => handleRoleSelect('customer')}
-          style={({ pressed }) => [
-            pressed && styles.buttonPressed
-          ]}
+          onPress={() => handleRoleSelect("customer")}
+          style={({ pressed }) => ({ marginBottom: 16 })}
         >
-          <ModernCard 
-            style={{ backgroundColor: '#0EA5E9', marginBottom: 16, paddingVertical: 16 }}
-            pressed={customerPressed}
-          >
-            <Text style={{ color: '#F3F4F6', textAlign: 'center', fontSize: 18, fontWeight: '600' }}>Customer</Text>
-          </ModernCard>
+          {({ pressed }) => (
+            <MotiView
+              animate={{ scale: pressed ? 0.98 : 1 }}
+              transition={{ type: "timing", duration: 150 }}
+              style={{
+                backgroundColor: "#8B5CF6", // bg-accent-primary
+                paddingVertical: 16,
+                borderRadius: 12,
+                alignItems: "center",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+            >
+              <Text style={{ 
+                fontSize: 18, 
+                fontWeight: "bold", 
+                color: "#F3F4F6" // text-primary-light
+              }}>
+                Customer
+              </Text>
+            </MotiView>
+          )}
         </Pressable>
 
         <Pressable
-          onPressIn={() => setShopkeeperPressed(true)}
-          onPressOut={() => setShopkeeperPressed(false)}
-          onPress={() => handleRoleSelect('shopkeeper')}
-          style={({ pressed }) => [
-            pressed && styles.buttonPressed
-          ]}
+          onPress={() => handleRoleSelect("shopkeeper")}
+          style={({ pressed }) => ({})}
         >
-          <ModernCard 
-            style={{ backgroundColor: '#22C55E', paddingVertical: 16 }}
-            pressed={shopkeeperPressed}
-          >
-            <Text style={{ color: '#F3F4F6', textAlign: 'center', fontSize: 18, fontWeight: '600' }}>Shopkeeper</Text>
-          </ModernCard>
+          {({ pressed }) => (
+            <MotiView
+              animate={{ scale: pressed ? 0.98 : 1 }}
+              transition={{ type: "timing", duration: 150 }}
+              style={{
+                backgroundColor: "#8B5CF6", // bg-accent-primary
+                paddingVertical: 16,
+                borderRadius: 12,
+                alignItems: "center",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+            >
+              <Text style={{ 
+                fontSize: 18, 
+                fontWeight: "bold", 
+                color: "#F3F4F6" // text-primary-light
+              }}>
+                Shopkeeper
+              </Text>
+            </MotiView>
+          )}
         </Pressable>
       </ModernCard>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    marginBottom: 40,
-  },
-  buttonPressed: {
-    opacity: 0.9,
-  },
-});

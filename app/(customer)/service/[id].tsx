@@ -1,167 +1,182 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, router, Stack } from 'expo-router';
-import { MotiView } from 'moti';
-import { doc, getDoc } from 'firebase/firestore';
-
-import { db } from '@/src/lib/firebase';
-import { Service, Shop } from '@/src/types/firebaseModels';
-import ModernCard from '@/src/components/ModernCard';
+import { useState, useEffect } from "react";
+import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { MotiView } from "moti";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Service } from "@/types/firebaseModels";
+import ModernCard from "@/components/ModernCard";
 
 export default function ServiceDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams();
+  const router = useRouter();
   const [service, setService] = useState<Service | null>(null);
-  const [shop, setShop] = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
-  const [bookPressed, setBookPressed] = useState(false);
 
   useEffect(() => {
-    const fetchServiceAndShop = async () => {
+    const fetchService = async () => {
       try {
-        // Fetch service details
-        const serviceDoc = await getDoc(doc(db, 'services', id));
+        const serviceDoc = await getDoc(doc(db, "services", id as string));
+        
         if (serviceDoc.exists()) {
-          const serviceData = { id: serviceDoc.id, ...serviceDoc.data() } as Service;
-          setService(serviceData);
-          
-          // Fetch shop details
-          const shopDoc = await getDoc(doc(db, 'shops', serviceData.shop_id));
-          if (shopDoc.exists()) {
-            setShop({ id: shopDoc.id, ...shopDoc.data() } as Shop);
-          }
-        } else {
-          console.error('Service not found');
+          setService({ id: serviceDoc.id, ...serviceDoc.data() } as Service);
         }
       } catch (error) {
-        console.error('Error fetching service details:', error);
+        console.error("Error fetching service details:", error);
       } finally {
         setLoading(false);
       }
     };
 
     if (id) {
-      fetchServiceAndShop();
+      fetchService();
     }
   }, [id]);
 
-  // Update the header title dynamically
-  useEffect(() => {
-    if (service) {
-      router.setParams({ title: service.name });
-    }
-  }, [service]);
-
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#8B5CF6" />
       </View>
     );
   }
 
-  if (!service || !shop) {
+  if (!service) {
     return (
-      <View style={styles.container}>
+      <View style={{ flex: 1, padding: 16, justifyContent: "center", alignItems: "center" }}>
         <ModernCard>
-          <Text style={{ color: '#38BDF8', textAlign: 'center' }}>Service not found</Text>
+          <Text style={{ fontSize: 18, color: "#F3F4F6", textAlign: "center" }}>
+            Service not found
+          </Text>
         </ModernCard>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: service.name }} />
-      
-      <View style={styles.content}>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 16 }}>
+      <ModernCard style={{ width: "100%", maxWidth: 400 }}>
         <MotiView
-          from={{ opacity: 0, translateY: 20 }}
+          from={{ opacity: 0, translateY: -10 }}
           animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 600 }}
+          transition={{ type: "timing", duration: 500 }}
         >
-          <ModernCard>
-            <View style={styles.serviceHeader}>
-              <Text style={{ color: '#38BDF8', fontSize: 24, fontWeight: 'bold' }}>{service.name}</Text>
-              <Text style={{ color: '#22C55E', fontSize: 20, fontWeight: 'bold' }}>${service.price.toFixed(2)}</Text>
-            </View>
-            
-            <View style={styles.serviceDetails}>
-              <Text style={{ color: '#A1A1AA', fontSize: 18 }}>Duration: {service.duration} minutes</Text>
-              
-              <View style={styles.shopInfo}>
-                <Text style={{ color: '#38BDF8', fontWeight: '600', marginTop: 16 }}>Provided by:</Text>
-                <Text style={{ color: '#0EA5E9', fontSize: 18 }}>{shop.name}</Text>
-              </View>
-              
-              {service.description && (
-                <View style={styles.descriptionContainer}>
-                  <Text style={{ color: '#38BDF8', fontWeight: '600', marginTop: 16 }}>Description:</Text>
-                  <Text style={{ color: '#A1A1AA', marginTop: 8 }}>{service.description}</Text>
-                </View>
-              )}
-            </View>
-          </ModernCard>
+          <Text
+            style={{
+              fontSize: 28,
+              fontWeight: "bold",
+              color: "#F3F4F6", // text-primary-light
+              textAlign: "center",
+              marginBottom: 8,
+            }}
+          >
+            {service.name}
+          </Text>
         </MotiView>
 
         <MotiView
-          from={{ opacity: 0, translateY: 40 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 600, delay: 200 }}
-          style={styles.bookButtonContainer}
+          from={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ type: "timing", duration: 500, delay: 200 }}
         >
-          <Pressable
-            onPressIn={() => setBookPressed(true)}
-            onPressOut={() => setBookPressed(false)}
-            onPress={() => router.push(`/booking/${shop.id}`)}
-            style={({ pressed }) => [
-              pressed && styles.bookButtonPressed
-            ]}
+          <Text
+            style={{
+              fontSize: 32,
+              fontWeight: "bold",
+              color: "#10B981", // text-status-completed
+              textAlign: "center",
+              marginBottom: 16,
+            }}
           >
-            <ModernCard 
-              style={{ backgroundColor: '#0EA5E9', paddingVertical: 20 }}
-              pressed={bookPressed}
-            >
-              <Text style={{ color: '#F3F4F6', textAlign: 'center', fontSize: 18, fontWeight: '600' }}>Book Now</Text>
-            </ModernCard>
-          </Pressable>
+            ${service.price.toFixed(2)}
+          </Text>
         </MotiView>
-      </View>
+
+        <MotiView
+          from={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ type: "timing", duration: 500, delay: 400 }}
+        >
+          <Text
+            style={{
+              fontSize: 18,
+              color: "#A1A1AA", // text-secondary-light
+              textAlign: "center",
+              marginBottom: 24,
+            }}
+          >
+            Duration: {service.duration} minutes
+          </Text>
+        </MotiView>
+
+        {service.description && (
+          <MotiView
+            from={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ type: "timing", duration: 500, delay: 600 }}
+            style={{ marginBottom: 32 }}
+          >
+            <Text
+              style={{
+                fontSize: 16,
+                color: "#A1A1AA", // text-secondary-light
+                textAlign: "center",
+                lineHeight: 24,
+              }}
+            >
+              {service.description}
+            </Text>
+          </MotiView>
+        )}
+
+        <Pressable
+          onPress={() => router.push(`/booking/${service.shop_id}`)}
+          style={({ pressed }) => ({})}
+        >
+          {({ pressed }) => (
+            <MotiView
+              from={{ scale: 1 }}
+              animate={{ 
+                scale: pressed ? 0.96 : 1,
+              }}
+              transition={{ type: "timing", duration: 150 }}
+              style={{
+                backgroundColor: "#8B5CF6", // bg-accent-primary
+                paddingVertical: 20,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+            >
+              <MotiView
+                from={{ scale: 1 }}
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{
+                  type: "spring",
+                  duration: 1500,
+                  loop: true,
+                  delay: 1000,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 20,
+                    fontWeight: "bold",
+                    color: "#F3F4F6", // text-primary-light
+                  }}
+                >
+                  Book Now
+                </Text>
+              </MotiView>
+            </MotiView>
+          )}
+        </Pressable>
+      </ModernCard>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  serviceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  serviceDetails: {
-    marginTop: 16,
-  },
-  shopInfo: {
-    marginTop: 8,
-  },
-  descriptionContainer: {
-    marginTop: 8,
-  },
-  bookButtonContainer: {
-    marginTop: 'auto',
-    marginBottom: 24,
-  },
-  bookButtonPressed: {
-    opacity: 0.9,
-  },
-});

@@ -1,195 +1,160 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, FlatList } from 'react-native';
-import { Stack } from 'expo-router';
-import { MotiView, AnimatePresence } from 'moti';
-import { collection, query, where, getDocs, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { useState, useEffect } from "react";
+import { View, Text, FlatList, ActivityIndicator } from "react-native";
+import { MotiView, AnimatePresence } from "moti";
+import { collection, query, where, getDocs, getDoc, doc, QuerySnapshot, DocumentData } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuthStore } from "@/store/authStore";
+import { QueueEntry, UserProfile, Booking, Service } from "@/types/firebaseModels";
+import { subscribeToQueueUpdates } from "@/lib/queueRealtime";
+import ModernCard from "@/components/ModernCard";
 
-import { db } from '@/src/lib/firebase';
-import { useAuthStore } from '@/src/store/authStore';
-import { QueueEntry, Booking, UserProfile } from '@/src/types/firebaseModels';
-import ModernCard from '@/src/components/ModernCard';
-import { subscribeToQueueUpdates } from '@/src/lib/queueRealtime';
-
-interface QueueItem extends QueueEntry {
+interface QueueItemDisplay extends QueueEntry {
   customerName: string;
-  serviceNames: string[];
+  services: string[];
 }
 
 export default function QueueScreen() {
   const { user } = useAuthStore();
-  const [myQueueEntry, setMyQueueEntry] = useState<QueueItem | null>(null);
-  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shopQueue, setShopQueue] = useState<QueueItemDisplay[]>([]);
+  const [myQueuePosition, setMyQueuePosition] = useState<number | null>(null);
+  const [queueAhead, setQueueAhead] = useState<number>(0);
   const [myShopId, setMyShopId] = useState<string | null>(null);
 
-  // Find the shop ID from the customer's latest booking
+  // Fetch the shop ID for the customer's most recent booking
   useEffect(() => {
-    const findMyShopId = async () => {
-      if (!user) return;
-      
+    const fetchMyShopId = async () => {
       try {
-        // Get the latest booking for this customer
+        if (!user?.id) return;
+        
         const bookingsQuery = query(
-          collection(db, 'bookings'),
-          where('customer_id', '==', user.id),
-          where('status', 'in', ['pending', 'confirmed'])
+          collection(db, "bookings"),
+          where("customer_id", "==", user.id),
+          where("status", "in", ["pending", "confirmed"])
         );
+        
         const bookingsSnapshot = await getDocs(bookingsQuery);
         
         if (!bookingsSnapshot.empty) {
-          // Sort by created_at to get the latest
-          const bookings = bookingsSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          })) as Booking[];
-          
-          const latestBooking = bookings.sort((a, b) => 
-            b.created_at.toMillis() - a.created_at.toMillis()
-          )[0];
-          
-          setMyShopId(latestBooking.shop_id);
-        } else {
-          console.log('No active bookings found');
-          setLoading(false);
+          const bookingData = bookingsSnapshot.docs[0].data();
+          setMyShopId(bookingData.shop_id);
         }
       } catch (error) {
-        console.error('Error finding shop ID:', error);
+        console.error("Error fetching shop ID:", error);
+      }
+    };
+
+    fetchMyShopId();
+  }, [user?.id]);
+
+  // Set up real-time queue updates
+  useEffect(() => {
+    if (!myShopId) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchAndProcessQueue = async (snapshot: QuerySnapshot<DocumentData>) => {
+      try {
+        const queueEntries: QueueItemDisplay[] = [];
+        let myPosition = null;
+        
+        // Process each queue entry
+        for (const doc of snapshot.docs) {
+          const queueData = { id: doc.id, ...doc.data() } as QueueEntry;
+          
+          // Check if this is the current user's queue entry
+          if (queueData.customer_id === user?.id) {
+            myPosition = queueData.position;
+          }
+          
+          // Fetch customer details
+          const customerDoc = await getDoc(doc(db, "users", queueData.customer_id));
+          let customerName = "Unknown";
+          
+          if (customerDoc.exists()) {
+            const customerData = customerDoc.data() as UserProfile;
+            customerName = `${customerData.first_name} ${customerData.last_name.charAt(0)}.`;
+          }
+          
+          // Fetch booking and service details
+          const bookingDoc = await getDoc(doc(db, "bookings", queueData.booking_id));
+          let services: string[] = [];
+          
+          if (bookingDoc.exists()) {
+            const bookingData = bookingDoc.data() as Booking;
+            
+            // Fetch service names
+            const servicePromises = bookingData.service_ids.map(serviceId => 
+              getDoc(doc(db, "services", serviceId))
+            );
+            
+            const serviceSnapshots = await Promise.all(servicePromises);
+            services = serviceSnapshots
+              .filter(doc => doc.exists())
+              .map(doc => (doc.data() as Service).name);
+          }
+          
+          queueEntries.push({
+            ...queueData,
+            customerName,
+            services,
+          });
+        }
+        
+        // Sort by position
+        queueEntries.sort((a, b) => a.position - b.position);
+        
+        setShopQueue(queueEntries);
+        setMyQueuePosition(myPosition);
+        
+        // Calculate how many people are ahead in the queue
+        if (myPosition !== null) {
+          const ahead = queueEntries.filter(entry => 
+            entry.position < myPosition && entry.status === "waiting"
+          ).length;
+          setQueueAhead(ahead);
+        }
+      } catch (error) {
+        console.error("Error processing queue data:", error);
+      } finally {
         setLoading(false);
       }
     };
 
-    findMyShopId();
-  }, [user]);
-
-  // Subscribe to queue updates when we have a shop ID
-  useEffect(() => {
-    if (!myShopId || !user) return;
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToQueueUpdates(myShopId, fetchAndProcessQueue);
     
-    const unsubscribe = subscribeToQueueUpdates(myShopId, (snapshot) => {
-      fetchAndProcessQueue(snapshot);
-    });
-    
-    // Cleanup subscription on unmount
+    // Clean up subscription on unmount
     return () => unsubscribe();
-  }, [myShopId, user]);
-
-  const fetchAndProcessQueue = async (snapshot: QuerySnapshot<DocumentData>) => {
-    try {
-      const queueData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as QueueEntry[];
-      
-      // Get customer names and service details for each queue entry
-      const queueWithDetails = await Promise.all(
-        queueData.map(async (entry) => {
-          // Get customer name
-          let customerName = 'Customer';
-          try {
-            const customerDoc = await getDocs(
-              query(collection(db, 'users'), where('id', '==', entry.customer_id))
-            );
-            if (!customerDoc.empty) {
-              const customerData = customerDoc.docs[0].data() as UserProfile;
-              customerName = `${customerData.first_name} ${customerData.last_name.charAt(0)}.`;
-            }
-          } catch (error) {
-            console.error('Error fetching customer:', error);
-          }
-          
-          // Get service names
-          let serviceNames: string[] = [];
-          try {
-            const bookingDoc = await getDocs(
-              query(collection(db, 'bookings'), where('id', '==', entry.booking_id))
-            );
-            if (!bookingDoc.empty) {
-              const bookingData = bookingDoc.docs[0].data() as Booking;
-              
-              // Get service names
-              const servicePromises = bookingData.service_ids.map(async (serviceId) => {
-                const serviceQuery = query(collection(db, 'services'), where('id', '==', serviceId));
-                const serviceDoc = await getDocs(serviceQuery);
-                return serviceDoc.empty ? 'Service' : serviceDoc.docs[0].data().name;
-              });
-              
-              serviceNames = await Promise.all(servicePromises);
-            }
-          } catch (error) {
-            console.error('Error fetching booking:', error);
-          }
-          
-          return {
-            ...entry,
-            customerName,
-            serviceNames
-          };
-        })
-      );
-      
-      // Find my queue entry
-      const myEntry = queueWithDetails.find(entry => entry.customer_id === user?.id) || null;
-      setMyQueueEntry(myEntry);
-      
-      // Set all queue entries
-      setQueueItems(queueWithDetails);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error processing queue data:', error);
-      setLoading(false);
-    }
-  };
-
-  // Get customers ahead of me
-  const getCustomersAhead = () => {
-    if (!myQueueEntry) return [];
-    
-    return queueItems.filter(item => 
-      item.position < myQueueEntry.position && 
-      item.status === 'waiting'
-    );
-  };
-
-  const customersAhead = getCustomersAhead();
-
-  const renderQueueItem = ({ item, index }: { item: QueueItem, index: number }) => (
-    <MotiView
-      from={{ opacity: 0, translateX: -20 }}
-      animate={{ opacity: 1, translateX: 0 }}
-      exit={{ opacity: 0, translateX: 20 }}
-      transition={{ type: 'timing', duration: 300, delay: index * 100 }}
-    >
-      <ModernCard delay={index * 100}>
-        <View style={styles.queueItemContent}>
-          <View>
-            <Text style={{ color: '#38BDF8', fontSize: 18, fontWeight: '600' }}>{item.customerName}</Text>
-            <Text style={{ color: '#A1A1AA', marginTop: 4 }}>{item.serviceNames.join(', ')}</Text>
-          </View>
-          <View style={styles.positionBadge}>
-            <Text style={{ color: '#0EA5E9', fontWeight: 'bold' }}>{item.position}</Text>
-          </View>
-        </View>
-      </ModernCard>
-    </MotiView>
-  );
+  }, [myShopId, user?.id]);
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+      </View>
+    );
+  }
+
+  if (!myShopId) {
+    return (
+      <View style={{ flex: 1, padding: 16, justifyContent: "center", alignItems: "center" }}>
         <ModernCard>
-          <Text style={{ color: '#38BDF8', textAlign: 'center' }}>Loading queue information...</Text>
+          <Text style={{ fontSize: 18, color: "#F3F4F6", textAlign: "center" }}>
+            You don't have any active bookings.
+          </Text>
         </ModernCard>
       </View>
     );
   }
 
-  if (!myQueueEntry) {
+  if (myQueuePosition === null) {
     return (
-      <View style={styles.container}>
-        <Stack.Screen options={{ title: 'Live Queue' }} />
+      <View style={{ flex: 1, padding: 16, justifyContent: "center", alignItems: "center" }}>
         <ModernCard>
-          <Text style={{ color: '#38BDF8', textAlign: 'center' }}>
-            You are not currently in any queue
+          <Text style={{ fontSize: 18, color: "#F3F4F6", textAlign: "center" }}>
+            You are not currently in the queue.
           </Text>
         </ModernCard>
       </View>
@@ -197,82 +162,174 @@ export default function QueueScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Live Queue' }} />
-      
-      <View style={styles.content}>
-        {/* My Position */}
-        <MotiView
-          from={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', damping: 15 }}
+    <View style={{ flex: 1, padding: 16 }}>
+      <MotiView
+        from={{ opacity: 0, translateY: -10 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: "timing", duration: 500 }}
+      >
+        <Text
+          style={{
+            fontSize: 32,
+            fontWeight: "bold",
+            color: "#F3F4F6", // text-primary-light
+            marginBottom: 24,
+          }}
         >
+          Your Live Queue
+        </Text>
+      </MotiView>
+
+      <ModernCard>
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "bold",
+            color: "#F3F4F6", // text-primary-light
+            textAlign: "center",
+            marginBottom: 8,
+          }}
+        >
+          Your position in the queue
+        </Text>
+        <Text
+          style={{
+            fontSize: 64,
+            fontWeight: "bold",
+            color: "#38BDF8", // text-accent-secondary
+            textAlign: "center",
+          }}
+        >
+          {myQueuePosition}
+        </Text>
+        <Text
+          style={{
+            fontSize: 16,
+            color: "#A1A1AA", // text-secondary-light
+            textAlign: "center",
+            marginTop: 8,
+          }}
+        >
+          {queueAhead === 0 
+            ? "You're next!" 
+            : `${queueAhead} ${queueAhead === 1 ? "person" : "people"} ahead of you`}
+        </Text>
+      </ModernCard>
+
+      <Text
+        style={{
+          fontSize: 20,
+          fontWeight: "bold",
+          color: "#F3F4F6", // text-primary-light
+          marginTop: 24,
+          marginBottom: 16,
+        }}
+      >
+        People in Queue
+      </Text>
+
+      <FlatList
+        data={shopQueue}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => (
+          <AnimatePresence>
+            <MotiView
+              from={{ opacity: 0, translateX: -20 }}
+              animate={{ opacity: 1, translateX: 0 }}
+              exit={{ opacity: 0, translateX: -100 }}
+              transition={{ type: "timing", duration: 500, delay: index * 100 }}
+              style={{ marginBottom: 12 }}
+            >
+              <ModernCard>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: item.customer_id === user?.id ? "#8B5CF6" : "#52525B",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginRight: 12,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 18,
+                        fontWeight: "bold",
+                        color: "#F3F4F6", // text-primary-light
+                      }}
+                    >
+                      {item.position}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "bold",
+                        color: "#F3F4F6", // text-primary-light
+                        marginBottom: 4,
+                      }}
+                    >
+                      {item.customer_id === user?.id ? "You" : item.customerName}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: "#A1A1AA", // text-secondary-light
+                      }}
+                    >
+                      {item.services.join(", ")}
+                    </Text>
+                  </View>
+                  <View
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 4,
+                      backgroundColor: 
+                        item.status === "waiting" 
+                          ? "rgba(59, 130, 246, 0.2)" // bg-status-confirmed with opacity
+                          : item.status === "completed"
+                            ? "rgba(16, 185, 129, 0.2)" // bg-status-completed with opacity
+                            : "rgba(239, 68, 68, 0.2)", // bg-status-cancelled with opacity
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "bold",
+                        color: 
+                          item.status === "waiting" 
+                            ? "#3B82F6" // text-status-confirmed
+                            : item.status === "completed"
+                              ? "#10B981" // text-status-completed
+                              : "#EF4444", // text-status-cancelled
+                      }}
+                    >
+                      {item.status.toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+              </ModernCard>
+            </MotiView>
+          </AnimatePresence>
+        )}
+        ListEmptyComponent={
           <ModernCard>
-            <Text style={{ color: '#38BDF8', fontSize: 20, fontWeight: '600', marginBottom: 16 }}>Your Position</Text>
-            <View style={styles.myPositionContainer}>
-              <Text style={{ color: '#38BDF8', fontSize: 18 }}>Current position:</Text>
-              <Text style={{ color: '#0EA5E9', fontSize: 28, fontWeight: 'bold' }}>{myQueueEntry.position}</Text>
-            </View>
-            <Text style={{ color: '#A1A1AA', marginTop: 16 }}>
-              {myQueueEntry.position === 1 
-                ? "You're next! Please be ready." 
-                : `There ${customersAhead.length === 1 ? 'is' : 'are'} ${customersAhead.length} customer${customersAhead.length === 1 ? '' : 's'} ahead of you.`
-              }
+            <Text
+              style={{
+                fontSize: 16,
+                color: "#F3F4F6", // text-primary-light
+                textAlign: "center",
+              }}
+            >
+              No one is currently in the queue.
             </Text>
           </ModernCard>
-        </MotiView>
-        
-        {/* Customers Ahead */}
-        {customersAhead.length > 0 && (
-          <View style={styles.aheadContainer}>
-            <Text style={{ color: '#38BDF8', fontSize: 20, fontWeight: '600', paddingHorizontal: 16, marginBottom: 16 }}>Customers Ahead</Text>
-            
-            <AnimatePresence>
-              <FlatList
-                data={customersAhead}
-                renderItem={renderQueueItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.queueList}
-              />
-            </AnimatePresence>
-          </View>
-        )}
-      </View>
+        }
+      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-    gap: 24,
-  },
-  myPositionContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  aheadContainer: {
-    flex: 1,
-  },
-  queueList: {
-    gap: 12,
-  },
-  queueItemContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  positionBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});

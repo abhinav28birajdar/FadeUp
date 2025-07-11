@@ -1,8 +1,6 @@
-const { nativewind } = require("nativewind/preset");
-
 /** @type {import('tailwindcss').Config} */
 const config = {
-  presets: [nativewind],
+  presets: [require("nativewind/preset")],
   content: [
     "./App.{js,jsx,ts,tsx}",
     "./app/**/*.{js,jsx,ts,tsx}",
@@ -11,22 +9,30 @@ const config = {
   theme: {
     extend: {
       colors: {
-        'dark-background': '#121212',
-        'dark-card': '#27272A',
-        'dark-border': '#52525B',
-        'primary-light': '#F3F4F6',
-        'secondary-light': '#A1A1AA',
-        'accent-primary': '#8B5CF6',
-        'accent-secondary': '#38BDF8',
+        background: '#000000',
+        surface: '#151515',
+        border: '#2F2F2F',
+        
+        primary: '#E7E9EA',
+        secondary: '#71767B',
+
+        accent: '#38BDF8',
+
         'status-pending': '#F97316',
         'status-confirmed': '#3B82F6',
         'status-completed': '#10B981',
         'status-cancelled': '#EF4444',
       },
+      spacing: {
+        '128': '32rem',
+        '144': '36rem',
+      },
+      borderRadius: {
+        '4xl': '2rem',
+      }
     },
   },
   plugins: [],
 };
 
 module.exports = config;
-module.exports.default = config;

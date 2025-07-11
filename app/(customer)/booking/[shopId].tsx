@@ -1,71 +1,68 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, TextInput, Alert, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, router, Stack } from 'expo-router';
-import { MotiView } from 'moti';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Platform } from 'react-native';
-import { collection, query, where, getDocs, addDoc, Timestamp, runTransaction, doc } from 'firebase/firestore';
+import { useState, useEffect } from "react";
+import { View, Text, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Platform } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { MotiView } from "moti";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { collection, query, where, getDocs, addDoc, doc, runTransaction, Timestamp, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuthStore } from "@/store/authStore";
+import { Service, Shop } from "@/types/firebaseModels";
+import ModernCard from "@/components/ModernCard";
 
-import { db } from '@/src/lib/firebase';
-import { useAuthStore } from '@/src/store/authStore';
-import { Shop, Service } from '@/src/types/firebaseModels';
-import ModernCard from '@/src/components/ModernCard';
-
-// Available time slots (hardcoded for simplicity)
-const timeSlots = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
+// Available time slots
+const TIME_SLOTS = [
+  "09:00", "10:00", "11:00", "12:00", "13:00", 
+  "14:00", "15:00", "16:00", "17:00", "18:00"
 ];
 
 export default function BookingScreen() {
-  const { shopId } = useLocalSearchParams<{ shopId: string }>();
+  const { shopId } = useLocalSearchParams();
+  const router = useRouter();
   const { user } = useAuthStore();
   
   const [shop, setShop] = useState<Shop | null>(null);
   const [services, setServices] = useState<Service[]>([]);
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
-  const [date, setDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
-  const [comment, setComment] = useState('');
-  const [totalPrice, setTotalPrice] = useState(0);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  const [bookingDate, setBookingDate] = useState(new Date());
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [commentFocused, setCommentFocused] = useState(false);
   
   const [loading, setLoading] = useState(true);
   const [bookingLoading, setBookingLoading] = useState(false);
-  const [commentFocused, setCommentFocused] = useState(false);
-  const [confirmPressed, setConfirmPressed] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Calculate total price
+  const totalPrice = services
+    .filter(service => selectedServiceIds.includes(service.id))
+    .reduce((sum, service) => sum + service.price, 0);
 
   useEffect(() => {
     const fetchShopAndServices = async () => {
       try {
         // Fetch shop details
-        const shopDoc = await doc(db, 'shops', shopId);
-        const shopSnapshot = await runTransaction(db, async (transaction) => {
-          const shopData = await transaction.get(shopDoc);
-          return shopData;
-        });
+        const shopDoc = await getDoc(doc(db, "shops", shopId as string));
         
-        if (shopSnapshot.exists()) {
-          setShop({ id: shopSnapshot.id, ...shopSnapshot.data() } as Shop);
+        if (shopDoc.exists()) {
+          setShop({ id: shopDoc.id, ...shopDoc.data() } as Shop);
           
           // Fetch services for this shop
           const servicesQuery = query(
-            collection(db, 'services'),
-            where('shop_id', '==', shopId)
+            collection(db, "services"),
+            where("shop_id", "==", shopDoc.id)
           );
+          
           const servicesSnapshot = await getDocs(servicesQuery);
-          const servicesData = servicesSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Service[];
+          const servicesData: Service[] = [];
+          
+          servicesSnapshot.forEach((doc) => {
+            servicesData.push({ id: doc.id, ...doc.data() } as Service);
+          });
           
           setServices(servicesData);
-        } else {
-          console.error('Shop not found');
         }
       } catch (error) {
-        console.error('Error fetching shop details:', error);
+        console.error("Error fetching shop details:", error);
       } finally {
         setLoading(false);
       }
@@ -76,96 +73,107 @@ export default function BookingScreen() {
     }
   }, [shopId]);
 
-  // Calculate total price when selected services change
-  useEffect(() => {
-    const calculateTotal = () => {
-      return services
-        .filter(service => selectedServices.includes(service.id))
-        .reduce((sum, service) => sum + service.price, 0);
-    };
-
-    setTotalPrice(calculateTotal());
-  }, [selectedServices, services]);
-
   const toggleServiceSelection = (serviceId: string) => {
-    setSelectedServices(prev => 
+    setSelectedServiceIds(prev => 
       prev.includes(serviceId)
         ? prev.filter(id => id !== serviceId)
         : [...prev, serviceId]
     );
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios');
+  const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === "ios");
     if (selectedDate) {
-      setDate(selectedDate);
+      setBookingDate(selectedDate);
     }
   };
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
   const handleConfirmBooking = async () => {
     // Validate inputs
-    if (selectedServices.length === 0) {
-      Alert.alert('Error', 'Please select at least one service');
+    if (selectedServiceIds.length === 0) {
+      Alert.alert("Error", "Please select at least one service");
       return;
     }
 
-    if (!selectedTimeSlot) {
-      Alert.alert('Error', 'Please select a time slot');
+    if (!selectedSlot) {
+      Alert.alert("Error", "Please select a time slot");
       return;
     }
 
     setBookingLoading(true);
+
     try {
       // Format date as YYYY-MM-DD
-      const formattedDate = date.toISOString().split('T')[0];
+      const formattedDate = bookingDate.toISOString().split("T")[0];
 
-      // Create booking document
-      const bookingRef = await addDoc(collection(db, 'bookings'), {
-        customer_id: user?.id,
-        shop_id: shopId,
-        service_ids: selectedServices,
-        booking_date: formattedDate,
-        slot_time: selectedTimeSlot,
-        total_price: totalPrice,
-        status: 'pending',
-        feedback_comment: comment || null,
-        created_at: Timestamp.now(),
+      // Create booking in a transaction
+      await runTransaction(db, async (transaction) => {
+        // Create booking document
+        const bookingRef = doc(collection(db, "bookings"));
+        
+        const bookingData = {
+          id: bookingRef.id,
+          customer_id: user?.id,
+          shop_id: shopId,
+          service_ids: selectedServiceIds,
+          booking_date: formattedDate,
+          slot_time: selectedSlot,
+          total_price: totalPrice,
+          status: "pending",
+          feedback_comment: feedbackComment || null,
+          created_at: Timestamp.now(),
+        };
+        
+        transaction.set(bookingRef, bookingData);
+        
+        // Find the highest position in the queue
+        const queueQuery = query(
+          collection(db, "queue"),
+          where("shop_id", "==", shopId),
+          where("status", "==", "waiting")
+        );
+        
+        const queueSnapshot = await getDocs(queueQuery);
+        let highestPosition = 0;
+        
+        queueSnapshot.forEach((doc) => {
+          const position = doc.data().position;
+          if (position > highestPosition) {
+            highestPosition = position;
+          }
+        });
+        
+        // Create queue entry
+        const queueRef = doc(collection(db, "queue"));
+        
+        const queueData = {
+          id: queueRef.id,
+          booking_id: bookingRef.id,
+          customer_id: user?.id,
+          shop_id: shopId,
+          position: highestPosition + 1,
+          status: "waiting",
+          created_at: Timestamp.now(),
+        };
+        
+        transaction.set(queueRef, queueData);
+        
+        return { bookingId: bookingRef.id };
       });
-
-      // Determine queue position and create queue entry
-      const queueQuery = query(
-        collection(db, 'queue'),
-        where('shop_id', '==', shopId),
-        where('status', '==', 'waiting')
-      );
-      const queueSnapshot = await getDocs(queueQuery);
-      const queuePosition = queueSnapshot.size + 1;
-
-      await addDoc(collection(db, 'queue'), {
-        booking_id: bookingRef.id,
-        customer_id: user?.id,
-        shop_id: shopId,
-        position: queuePosition,
-        status: 'waiting',
-        created_at: Timestamp.now(),
-      });
-
-      // Navigate to confirmation screen
-      router.replace({
-        pathname: '/booking/confirmation',
-        params: { bookingId: bookingRef.id }
-      });
+      
+      Alert.alert("Success", "Booking confirmed successfully!");
+      router.replace("/booking/confirmation");
     } catch (error) {
-      console.error('Error creating booking:', error);
-      Alert.alert('Booking Failed', 'There was an error creating your booking. Please try again.');
+      console.error("Error creating booking:", error);
+      Alert.alert("Error", "Failed to create booking. Please try again.");
     } finally {
       setBookingLoading(false);
     }
@@ -173,7 +181,7 @@ export default function BookingScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#8B5CF6" />
       </View>
     );
@@ -181,305 +189,335 @@ export default function BookingScreen() {
 
   if (!shop) {
     return (
-      <View style={styles.container}>
+      <View style={{ flex: 1, padding: 16, justifyContent: "center", alignItems: "center" }}>
         <ModernCard>
-          <Text style={{ color: '#38BDF8', textAlign: 'center' }}>Shop not found</Text>
+          <Text style={{ fontSize: 18, color: "#F3F4F6", textAlign: "center" }}>
+            Shop not found
+          </Text>
         </ModernCard>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: `Book at ${shop.name}` }} />
-      
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Services Selection */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 600 }}
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+      <MotiView
+        from={{ opacity: 0, translateY: -10 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: "timing", duration: 500 }}
+      >
+        <Text
+          style={{
+            fontSize: 32,
+            fontWeight: "bold",
+            color: "#F3F4F6", // text-primary-light
+            marginBottom: 24,
+          }}
         >
-          <ModernCard>
-            <Text style={{ color: '#38BDF8', fontSize: 20, fontWeight: '600', marginBottom: 16 }}>Select Services</Text>
-            
-            {services.map((service, index) => (
-              <Pressable
-                key={service.id}
-                onPress={() => toggleServiceSelection(service.id)}
-                style={({ pressed }) => [
-                  styles.serviceItem,
-                  selectedServices.includes(service.id) && styles.serviceItemSelected,
-                  pressed && styles.serviceItemPressed
-                ]}
-              >
-                <MotiView
-                  animate={{ 
-                    backgroundColor: selectedServices.includes(service.id) 
-                      ? 'rgba(139, 92, 246, 0.2)' 
-                      : 'transparent',
-                    scale: selectedServices.includes(service.id) ? 1.02 : 1
-                  }}
-                  transition={{ type: 'timing', duration: 200 }}
-                  style={styles.serviceItemInner}
-                >
-                  <View style={[styles.serviceCheckbox, selectedServices.includes(service.id) ? { borderColor: '#0EA5E9', backgroundColor: '#0EA5E9' } : { borderColor: '#27272A' }]}> {/* border-accent-primary bg-accent-primary or border-dark-border */}
-                    {selectedServices.includes(service.id) && (
-                      <Text style={{ color: '#F3F4F6', fontSize: 12 }}>✓</Text>
-                    )}
-                  </View>
-                  
-                  <View style={styles.serviceInfo}>
-                    <Text style={{ color: '#38BDF8', fontSize: 18 }}>{service.name}</Text>
-                    <Text style={{ color: '#A1A1AA' }}>{service.duration} min</Text>
-                  </View>
-                  
-                  <Text style={{ color: '#22C55E', fontWeight: 'bold' }}>${service.price.toFixed(2)}</Text>
-                </MotiView>
-              </Pressable>
-            ))}
-          </ModernCard>
-        </MotiView>
+          Book Your Slot
+        </Text>
+      </MotiView>
 
-        {/* Date Selection */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 600, delay: 100 }}
+      {/* Choose Services */}
+      <ModernCard delay={100}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "bold",
+            color: "#F3F4F6", // text-primary-light
+            marginBottom: 16,
+          }}
         >
-          <ModernCard delay={100}>
-            <Text style={{ color: '#38BDF8', fontSize: 20, fontWeight: '600', marginBottom: 16 }}>Select Date</Text>
-            
-            <Pressable
-              onPress={() => setShowDatePicker(true)}
-              style={styles.dateSelector}
-            >
-              <Text style={{ color: '#38BDF8', fontSize: 18 }}>{formatDate(date)}</Text>
-            </Pressable>
-            
-            {showDatePicker && (
-              <DateTimePicker
-                value={date}
-                mode="date"
-                display="default"
-                onChange={handleDateChange}
-                minimumDate={new Date()}
-                themeVariant="dark"
-              />
-            )}
-          </ModernCard>
-        </MotiView>
+          Choose Services
+        </Text>
 
-        {/* Time Slot Selection */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 600, delay: 200 }}
-        >
-          <ModernCard delay={200}>
-            <Text style={{ color: '#38BDF8', fontSize: 20, fontWeight: '600', marginBottom: 16 }}>Select Time</Text>
-            
-            <View style={styles.timeSlotsContainer}>
-              {timeSlots.map((slot) => (
-                <Pressable
-                  key={slot}
-                  onPress={() => setSelectedTimeSlot(slot)}
-                  style={({ pressed }) => [
-                    styles.timeSlot,
-                    selectedTimeSlot === slot && styles.timeSlotSelected,
-                    pressed && styles.timeSlotPressed
-                  ]}
-                >
-                  <MotiView
-                    animate={{ 
-                      backgroundColor: selectedTimeSlot === slot 
-                        ? '#8B5CF6' 
-                        : 'transparent',
-                    }}
-                    transition={{ type: 'timing', duration: 200 }}
-                    style={styles.timeSlotInner}
-                  >
-                    <Text style={{ color: selectedTimeSlot === slot ? '#38BDF8' : '#A1A1AA' }}>
-                      {slot}
-                    </Text>
-                  </MotiView>
-                </Pressable>
-              ))}
-            </View>
-          </ModernCard>
-        </MotiView>
-
-        {/* Optional Comment */}
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 600, delay: 300 }}
-        >
-          <ModernCard delay={300}>
-            <Text style={{ color: '#38BDF8', fontSize: 20, fontWeight: '600', marginBottom: 16 }}>Additional Comments (Optional)</Text>
-            
+        {services.map((service, index) => (
+          <Pressable
+            key={service.id}
+            onPress={() => toggleServiceSelection(service.id)}
+            style={{ marginBottom: index === services.length - 1 ? 0 : 12 }}
+          >
             <MotiView
               animate={{ 
-                borderColor: commentFocused ? '#38BDF8' : '#52525B',
-                translateY: commentFocused ? -2 : 0
+                backgroundColor: selectedServiceIds.includes(service.id) 
+                  ? "rgba(139, 92, 246, 0.2)" // bg-accent-primary with opacity
+                  : "transparent",
+                borderColor: selectedServiceIds.includes(service.id)
+                  ? "#8B5CF6" // border-accent-primary
+                  : "#52525B", // border-dark-border
               }}
-              transition={{ type: 'timing', duration: 200 }}
-              style={styles.commentContainer}
+              transition={{ type: "timing", duration: 200 }}
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: 12,
+                borderRadius: 8,
+                borderWidth: 1,
+              }}
             >
-              <TextInput
-                style={[styles.commentInput, { backgroundColor: 'rgba(24,24,27,0.5)', padding: 16, borderRadius: 12, color: '#38BDF8' }]}
-                placeholder="Any special requests or notes for your appointment..."
-                placeholderTextColor="#A1A1AA"
-                value={comment}
-                onChangeText={setComment}
-                onFocus={() => setCommentFocused(true)}
-                onBlur={() => setCommentFocused(false)}
-                multiline
-                numberOfLines={4}
-              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    color: "#F3F4F6", // text-primary-light
+                  }}
+                >
+                  {service.name}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: "#A1A1AA", // text-secondary-light
+                  }}
+                >
+                  {service.duration} minutes
+                </Text>
+              </View>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "bold",
+                  color: "#10B981", // text-status-completed
+                }}
+              >
+                ${service.price.toFixed(2)}
+              </Text>
             </MotiView>
-          </ModernCard>
-        </MotiView>
-      </ScrollView>
+          </Pressable>
+        ))}
 
-      {/* Footer with Total and Confirm Button */}
-      <MotiView
-        from={{ opacity: 0, translateY: 40 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: 'timing', duration: 600, delay: 400 }}
-        style={styles.footer}
-      >
-        <View style={styles.totalContainer}>
-          <Text style={{ color: '#38BDF8', fontSize: 16 }}>Total:</Text>
-          <Text style={{ color: '#22C55E', fontSize: 20, fontWeight: 'bold' }}>${totalPrice.toFixed(2)}</Text>
-        </View>
-        
-        <Pressable
-          onPressIn={() => setConfirmPressed(true)}
-          onPressOut={() => setConfirmPressed(false)}
-          onPress={handleConfirmBooking}
-          disabled={bookingLoading || selectedServices.length === 0 || !selectedTimeSlot}
-          style={({ pressed }) => [
-            pressed && styles.confirmButtonPressed,
-            (selectedServices.length === 0 || !selectedTimeSlot) && styles.confirmButtonDisabled
-          ]}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginTop: 16,
+            paddingTop: 16,
+            borderTopWidth: 1,
+            borderTopColor: "#52525B", // border-dark-border
+          }}
         >
-          <ModernCard 
-            style={{ backgroundColor: '#22C55E', paddingVertical: 20 }}
-            pressed={confirmPressed}
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "bold",
+              color: "#F3F4F6", // text-primary-light
+            }}
           >
-            {bookingLoading ? (
-              <ActivityIndicator color="#F3F4F6" />
-            ) : (
-              <Text style={{ color: '#38BDF8', textAlign: 'center', fontSize: 18, fontWeight: '600' }}>Confirm Booking</Text>
-            )}
-          </ModernCard>
+            Total
+          </Text>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "bold",
+              color: "#10B981", // text-status-completed
+            }}
+          >
+            ${totalPrice.toFixed(2)}
+          </Text>
+        </View>
+      </ModernCard>
+
+      {/* Select Date & Time */}
+      <ModernCard delay={200} style={{ marginTop: 16 }}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "bold",
+            color: "#F3F4F6", // text-primary-light
+            marginBottom: 16,
+          }}
+        >
+          Select Date & Time
+        </Text>
+
+        <Pressable
+          onPress={() => setShowDatePicker(true)}
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: 12,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#52525B", // border-dark-border
+            marginBottom: 16,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 16,
+              color: "#F3F4F6", // text-primary-light
+            }}
+          >
+            {formatDate(bookingDate)}
+          </Text>
+          <Text
+            style={{
+              fontSize: 16,
+              color: "#38BDF8", // text-accent-secondary
+            }}
+          >
+            Change
+          </Text>
         </Pressable>
-      </MotiView>
-    </View>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={bookingDate}
+            mode="date"
+            display="default"
+            onChange={handleDateChange}
+            minimumDate={new Date()}
+            themeVariant="dark"
+          />
+        )}
+
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "bold",
+            color: "#F3F4F6", // text-primary-light
+            marginBottom: 12,
+          }}
+        >
+          Available Slots
+        </Text>
+
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            marginHorizontal: -4,
+          }}
+        >
+          {TIME_SLOTS.map((slot) => (
+            <Pressable
+              key={slot}
+              onPress={() => setSelectedSlot(slot)}
+              style={{ width: "33.33%", padding: 4 }}
+            >
+              <MotiView
+                animate={{ 
+                  backgroundColor: selectedSlot === slot 
+                    ? "#8B5CF6" // bg-accent-primary
+                    : "transparent",
+                  borderColor: selectedSlot === slot
+                    ? "#8B5CF6" // border-accent-primary
+                    : "#52525B", // border-dark-border
+                }}
+                transition={{ type: "timing", duration: 200 }}
+                style={{
+                  padding: 8,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "bold",
+                    color: selectedSlot === slot
+                      ? "#F3F4F6" // text-primary-light
+                      : "#A1A1AA", // text-secondary-light
+                  }}
+                >
+                  {slot}
+                </Text>
+              </MotiView>
+            </Pressable>
+          ))}
+        </View>
+      </ModernCard>
+
+      {/* Your Message (Optional) */}
+      <ModernCard delay={300} style={{ marginTop: 16 }}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "bold",
+            color: "#F3F4F6", // text-primary-light
+            marginBottom: 16,
+          }}
+        >
+          Your Message (Optional)
+        </Text>
+
+        <MotiView
+          animate={{ 
+            borderColor: commentFocused ? "#38BDF8" : "#52525B" // accent-secondary : dark-border
+          }}
+          transition={{ type: "timing", duration: 200 }}
+          style={{
+            borderWidth: 1,
+            borderRadius: 12,
+            backgroundColor: "rgba(18, 18, 18, 0.5)", // bg-dark-background/50
+            padding: 16,
+          }}
+        >
+          <TextInput
+            placeholder="Any special requests or notes for your booking..."
+            placeholderTextColor="#A1A1AA" // text-secondary-light
+            value={feedbackComment}
+            onChangeText={setFeedbackComment}
+            onFocus={() => setCommentFocused(true)}
+            onBlur={() => setCommentFocused(false)}
+            multiline
+            numberOfLines={4}
+            style={{ 
+              color: "#F3F4F6", // text-primary-light
+              fontSize: 16,
+              textAlignVertical: "top",
+              height: 100,
+            }}
+          />
+        </MotiView>
+      </ModernCard>
+
+      {/* Confirm Booking Button */}
+      <View style={{ marginTop: 24, marginBottom: 40 }}>
+        <Pressable
+          onPress={handleConfirmBooking}
+          disabled={bookingLoading}
+          style={({ pressed }) => ({})}
+        >
+          {({ pressed }) => (
+            <MotiView
+              animate={{ scale: pressed ? 0.98 : 1 }}
+              transition={{ type: "timing", duration: 150 }}
+              style={{
+                backgroundColor: "#10B981", // bg-status-completed
+                paddingVertical: 20,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 3,
+                height: 60,
+              }}
+            >
+              {bookingLoading ? (
+                <ActivityIndicator color="#F3F4F6" />
+              ) : (
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "bold",
+                    color: "#F3F4F6", // text-primary-light
+                  }}
+                >
+                  Confirm Booking
+                </Text>
+              )}
+            </MotiView>
+          )}
+        </Pressable>
+      </View>
+    </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
-    gap: 16,
-  },
-  serviceItem: {
-    marginBottom: 12,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  serviceItemInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-  },
-  serviceItemSelected: {
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-  },
-  serviceItemPressed: {
-    opacity: 0.9,
-  },
-  serviceCheckbox: {
-    marginRight: 12,
-  },
-  serviceInfo: {
-    flex: 1,
-  },
-  dateSelector: {
-    backgroundColor: 'rgba(18, 18, 18, 0.5)',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#52525B',
-  },
-  timeSlotsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  timeSlot: {
-    width: '31%',
-    marginBottom: 8,
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#52525B',
-  },
-  timeSlotInner: {
-    padding: 10,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  timeSlotSelected: {
-    borderColor: '#8B5CF6',
-  },
-  timeSlotPressed: {
-    opacity: 0.9,
-  },
-  commentContainer: {
-    borderWidth: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  commentInput: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(18, 18, 18, 0.95)',
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#27272A',
-  },
-  totalContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  confirmButtonPressed: {
-    opacity: 0.9,
-  },
-  confirmButtonDisabled: {
-    opacity: 0.5,
-  },
-});

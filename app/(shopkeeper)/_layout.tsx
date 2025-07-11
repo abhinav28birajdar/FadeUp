@@ -1,25 +1,21 @@
 import { Stack } from 'expo-router';
 import { View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 
 export default function ShopkeeperLayout() {
   return (
-    <View style={{ flex: 1 }}>
-      <LinearGradient
-        colors={['#121212', '#1A1A1A', '#242424']}
-        style={{ flex: 1, position: 'absolute', width: '100%', height: '100%' }}
-      />
+    <View className="flex-1 bg-background">
       <Stack
         screenOptions={{
           headerShown: true,
           headerStyle: {
-            backgroundColor: '#121212',
+            backgroundColor: '#000000',
           },
-          headerTintColor: '#F3F4F6',
+          headerTintColor: '#E7E9EA',
           headerTitleStyle: {
             fontWeight: 'bold',
           },
           contentStyle: { backgroundColor: 'transparent' },
+          animation: 'slide_from_right',
         }}
       >
         <Stack.Screen 

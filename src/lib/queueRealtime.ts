@@ -1,5 +1,5 @@
 import { db } from '@/src/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, QuerySnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, QuerySnapshot, where } from 'firebase/firestore';
 
 /**
  * Subscribe to real-time updates for a shop's queue
