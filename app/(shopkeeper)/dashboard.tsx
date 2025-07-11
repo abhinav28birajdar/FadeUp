@@ -1,184 +1,253 @@
-import { router, Stack } from 'expo-router';
-import { signOut } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
-import { MotiView } from 'moti';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
+import { useState, useEffect } from "react";
+import { View, Text, FlatList, Pressable, ActivityIndicator } from "react-native";
+import { useRouter } from "expo-router";
+import { MotiView } from "moti";
+import { collection, query, where, orderBy, getDocs, getDoc, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuthStore } from "@/store/authStore";
+import { Booking, UserProfile, Service, Shop } from "@/types/firebaseModels";
+import ModernCard from "@/components/ModernCard";
 
-import { auth, db } from '@/src/lib/firebase';
-import { useAuthStore } from '@/src/store/authStore';
-import { Booking, Shop, UserProfile } from '@/src/types/firebaseModels';
-
-// --- Components ---
-
-interface BookingWithDetails extends Booking {
+interface BookingDisplay extends Booking {
   customerName: string;
-  serviceNames: string[];
+  services: string[];
 }
 
-const DashboardHeader = ({ shopName, onLogout }: { shopName: string; onLogout: () => void }) => (
-  <View className="p-4 bg-surface">
-    <Stack.Screen options={{ title: `${shopName} Dashboard` }} />
-    <Pressable onPress={onLogout} className="absolute top-4 right-4 bg-red-500 p-2 rounded-lg">
-      <Text className="text-white">Logout</Text>
-    </Pressable>
-  </View>
-);
-
-const ActionCard = ({ title, onPress, delay }: { title: string; onPress: () => void; delay: number }) => (
-  <MotiView
-    from={{ opacity: 0, translateY: 20 }}
-    animate={{ opacity: 1, translateY: 0 }}
-    transition={{ type: 'timing', duration: 500, delay }}
-    className="flex-1"
-  >
-    <Pressable onPress={onPress} className="bg-surface rounded-2xl p-6 items-center justify-center mx-2">
-      <Text className="text-primary text-lg font-semibold">{title}</Text>
-    </Pressable>
-  </MotiView>
-);
-
-const BookingCard = ({ item, index }: { item: BookingWithDetails; index: number }) => {
-  const getStatusClass = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-status-pending';
-      case 'confirmed': return 'bg-status-confirmed';
-      case 'completed': return 'bg-status-completed';
-      case 'cancelled': return 'bg-status-cancelled';
-      default: return 'bg-secondary';
-    }
-  };
-
-  return (
-    <MotiView
-      from={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'timing', duration: 300, delay: index * 100 }}
-    >
-      <Pressable 
-        onPress={() => router.push(`/dashboard/booking/${item.id}`)} 
-        className="bg-surface rounded-2xl p-4 mx-4 mb-4"
-      >
-        <View className="flex-row justify-between items-center mb-3">
-          <Text className="text-primary text-xl font-bold">{item.customerName}</Text>
-          <View className={`px-3 py-1 rounded-full ${getStatusClass(item.status)}`}>
-            <Text className="text-background font-bold text-xs">{item.status.toUpperCase()}</Text>
-          </View>
-        </View>
-        <Text className="text-secondary mb-2">{item.serviceNames.join(', ')}</Text>
-        <View className="flex-row justify-between items-center mt-2 border-t border-border pt-3">
-          <Text className="text-accent font-semibold">
-            {new Date(item.booking_date).toLocaleDateString()} at {item.slot_time}
-          </Text>
-          <Text className="text-primary text-lg font-bold">${item.total_price.toFixed(2)}</Text>
-        </View>
-      </Pressable>
-    </MotiView>
-  );
-};
-
-const EmptyState = ({ message }: { message: string }) => (
-  <View className="flex-1 justify-center items-center p-8">
-    <Text className="text-secondary text-lg text-center">{message}</Text>
-  </View>
-);
-
-// --- Main Screen ---
-
 export default function DashboardScreen() {
+  const router = useRouter();
   const { user } = useAuthStore();
   const [shop, setShop] = useState<Shop | null>(null);
-  const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
+  const [bookings, setBookings] = useState<BookingDisplay[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchShopAndBookings = async () => {
-      if (!user || !user.shop_id) {
-        setLoading(false);
-        return;
-      }
-
       try {
-        const shopDocRef = doc(db, 'shops', user.shop_id);
-        const shopDoc = await getDoc(shopDocRef);
-
+        if (!user?.id || !user?.shop_id) {
+          setLoading(false);
+          return;
+        }
+        
+        // Fetch shop details
+        const shopDoc = await getDoc(doc(db, "shops", user.shop_id));
+        
         if (shopDoc.exists()) {
-          const shopData = { id: shopDoc.id, ...shopDoc.data() } as Shop;
-          setShop(shopData);
-
-          const bookingsQuery = query(collection(db, 'bookings'), where('shop_id', '==', user.shop_id));
-          const bookingsSnapshot = await getDocs(bookingsQuery);
-          const bookingsData = bookingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Booking);
-
-          const bookingsWithDetails = await Promise.all(
-            bookingsData.map(async (booking) => {
-              const customerDoc = await getDoc(doc(db, 'users', booking.customer_id));
-              const customerName = customerDoc.exists() ? `${(customerDoc.data() as UserProfile).first_name} ${(customerDoc.data() as UserProfile).last_name}` : 'Customer';
-              
-              const serviceNames = await Promise.all(
-                  booking.service_ids.map(async (serviceId) => {
-                      const serviceDoc = await getDoc(doc(db, 'services', serviceId));
-                      return serviceDoc.exists() ? serviceDoc.data().name : '';
-                  })
-              );
-
-              return { ...booking, customerName, serviceNames: serviceNames.filter(name => name) };
-            })
+          setShop({ id: shopDoc.id, ...shopDoc.data() } as Shop);
+          
+          // Fetch bookings for this shop
+          const bookingsQuery = query(
+            collection(db, "bookings"),
+            where("shop_id", "==", user.shop_id),
+            orderBy("booking_date"),
+            orderBy("slot_time")
           );
-
-          setBookings(bookingsWithDetails.sort((a, b) => new Date(`${a.booking_date}T${a.slot_time}`).getTime() - new Date(`${b.booking_date}T${b.slot_time}`).getTime()));
+          
+          const bookingsSnapshot = await getDocs(bookingsQuery);
+          const bookingsPromises = bookingsSnapshot.docs.map(async (docSnapshot) => {
+            const bookingData = { id: docSnapshot.id, ...docSnapshot.data() } as Booking;
+            
+            // Fetch customer details
+            const customerDoc = await getDoc(doc(db, "users", bookingData.customer_id));
+            let customerName = "Unknown Customer";
+            
+            if (customerDoc.exists()) {
+              const customerData = customerDoc.data() as UserProfile;
+              customerName = `${customerData.first_name} ${customerData.last_name}`;
+            }
+            
+            // Fetch service details
+            const servicePromises = bookingData.service_ids.map(serviceId => 
+              getDoc(doc(db, "services", serviceId))
+            );
+            
+            const serviceSnapshots = await Promise.all(servicePromises);
+            const services = serviceSnapshots
+              .filter(docSnapshot => docSnapshot.exists())
+              .map(docSnapshot => (docSnapshot.data() as Service).name);
+            
+            return {
+              ...bookingData,
+              customerName,
+              services,
+            };
+          });
+          
+          const bookingsData = await Promise.all(bookingsPromises);
+          setBookings(bookingsData);
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error("Error fetching shop and bookings:", error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchShopAndBookings();
-  }, [user]);
+  }, [user?.id, user?.shop_id]);
 
-  const handleLogout = async () => {
-    await signOut(auth);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "#F97316"; // text-status-pending
+      case "confirmed":
+        return "#3B82F6"; // text-status-confirmed
+      case "completed":
+        return "#10B981"; // text-status-completed
+      case "cancelled":
+        return "#EF4444"; // text-status-cancelled
+      default:
+        return "#A1A1AA"; // text-secondary-light
+    }
+  };
+
+  const getStatusBgColor = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "rgba(249, 115, 22, 0.2)"; // bg-status-pending with opacity
+      case "confirmed":
+        return "rgba(59, 130, 246, 0.2)"; // bg-status-confirmed with opacity
+      case "completed":
+        return "rgba(16, 185, 129, 0.2)"; // bg-status-completed with opacity
+      case "cancelled":
+        return "rgba(239, 68, 68, 0.2)"; // bg-status-cancelled with opacity
+      default:
+        return "rgba(161, 161, 170, 0.2)"; // bg-secondary-light with opacity
+    }
   };
 
   if (loading) {
-    return <View className="flex-1 justify-center items-center bg-background"><ActivityIndicator size="large" color="#38BDF8" /></View>;
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+      </View>
+    );
   }
 
   if (!shop) {
     return (
-        <View className="flex-1 justify-center items-center bg-background p-8">
-            <Stack.Screen options={{ title: 'Dashboard' }} />
-            <Text className="text-primary text-xl text-center mb-6">No shop is associated with your account.</Text>
-            <Pressable onPress={handleLogout} className="bg-accent rounded-lg py-3 px-6">
-                <Text className="text-background font-bold">Logout</Text>
-            </Pressable>
-        </View>
+      <View style={{ flex: 1, padding: 16, justifyContent: "center", alignItems: "center" }}>
+        <ModernCard>
+          <Text style={{ fontSize: 18, color: "#F3F4F6", textAlign: "center" }}>
+            Shop information not found. Please contact support.
+          </Text>
+        </ModernCard>
+      </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-background">
-      <DashboardHeader shopName={shop.name} onLogout={handleLogout} />
-      
-      <View className="flex-row p-2">
-        <ActionCard title="Manage Queue" onPress={() => router.push('/queue')} delay={100} />
-        <ActionCard title="View Feedback" onPress={() => router.push('/feedback')} delay={200} />
-      </View>
+    <View style={{ flex: 1, padding: 16 }}>
+      <MotiView
+        from={{ opacity: 0, translateY: -10 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: "timing", duration: 500 }}
+      >
+        <Text
+          style={{
+            fontSize: 32,
+            fontWeight: "bold",
+            color: "#F3F4F6", // text-primary-light
+            marginBottom: 8,
+          }}
+        >
+          My Shop Dashboard
+        </Text>
+        <Text
+          style={{
+            fontSize: 18,
+            color: "#A1A1AA", // text-secondary-light
+            marginBottom: 24,
+          }}
+        >
+          Welcome, {user?.first_name}
+        </Text>
+      </MotiView>
 
-      <Text className="text-primary text-2xl font-bold px-4 mt-4 mb-2">Upcoming Bookings</Text>
-
-      {bookings.length > 0 ? (
-        <FlatList
-          data={bookings}
-          renderItem={({ item, index }) => <BookingCard item={item} index={index} />}
-          keyExtractor={(item) => item.id}
-          contentContainerClassName="pb-4"
-        />
-      ) : (
-        <EmptyState message="You have no upcoming bookings." />
-      )}
+      <FlatList
+        data={bookings}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => (
+          <Pressable
+            onPress={() => router.push(`/dashboard/booking/${item.id}`)}
+            style={({ pressed }) => ({ marginBottom: 16 })}
+          >
+            {({ pressed }) => (
+              <ModernCard pressed={pressed} delay={index * 100}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "bold",
+                      color: "#F3F4F6", // text-primary-light
+                    }}
+                  >
+                    {item.customerName}
+                  </Text>
+                  <View
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 4,
+                      backgroundColor: getStatusBgColor(item.status),
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "bold",
+                        color: getStatusColor(item.status),
+                      }}
+                    >
+                      {item.status.toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: "#A1A1AA", // text-secondary-light
+                    marginBottom: 8,
+                  }}
+                >
+                  {item.services.join(", ")}
+                </Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: "#A1A1AA", // text-secondary-light
+                    }}
+                  >
+                    {item.booking_date} at {item.slot_time}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "bold",
+                      color: "#10B981", // text-status-completed
+                    }}
+                  >
+                    ${item.total_price.toFixed(2)}
+                  </Text>
+                </View>
+              </ModernCard>
+            )}
+          </Pressable>
+        )}
+        ListEmptyComponent={
+          <ModernCard>
+            <Text
+              style={{
+                fontSize: 18,
+                color: "#F3F4F6", // text-primary-light
+                textAlign: "center",
+              }}
+            >
+              No bookings yet.
+            </Text>
+          </ModernCard>
+        }
+      />
     </View>
   );
 }
