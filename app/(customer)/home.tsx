@@ -1,382 +1,286 @@
-import { useState, useEffect, useRef } from "react";
-import { View, Text, FlatList, Pressable, Image, ActivityIndicator, Dimensions } from "react-native";
-import { useRouter } from "expo-router";
-import { MotiView } from "moti";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuthStore } from "@/store/authStore";
-import { Shop } from "@/types/firebaseModels";
-import ModernCard from "@/components/ModernCard";
+import { router } from 'expo-router';
+import { MotiView } from 'moti';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { ModernCard } from '../../src/components/ModernCard';
+import { supabase } from '../../src/lib/supabase';
+import { useAuthStore } from '../../src/store/authStore';
+import { Shop } from '../../src/types/supabase';
+import { getCurrentUserLocation, requestLocationPermissions } from '../../src/utils/location';
+import { filterAndSortShopsByDistance } from '../../src/utils/mapHelpers';
 
-// Hero slider data
-const heroSlides = [
+const SLIDER_DATA = [
   {
-    id: "1",
-    title: "Premium Haircuts",
-    description: "Experience the best barbers in town",
-    imageUrl: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80"
+    id: '1',
+    title: 'Premium Cuts',
+    description: 'Experience the finest barbering',
+    image: 'https://via.placeholder.com/400x200/CB9C5E/F3F4F6?text=Premium+Cuts',
   },
   {
-    id: "2",
-    title: "No Wait Time",
-    description: "Book your slot and skip the queue",
-    imageUrl: "https://images.unsplash.com/photo-1599351431202-1e0f0137899a?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80"
+    id: '2', 
+    title: 'Modern Styles',
+    description: 'Latest trends and classic looks',
+    image: 'https://via.placeholder.com/400x200/827092/F3F4F6?text=Modern+Styles',
   },
   {
-    id: "3",
-    title: "Expert Stylists",
-    description: "Get styled by professionals",
-    imageUrl: "https://images.unsplash.com/photo-1622286342621-4bd786c2447c?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80"
+    id: '3',
+    title: 'Expert Barbers',
+    description: 'Skilled professionals near you',
+    image: 'https://via.placeholder.com/400x200/CB9C5E/F3F4F6?text=Expert+Barbers',
   },
 ];
 
-interface HeroSlide {
-  id: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-}
-
-interface ShopRenderItem {
-  item: Shop;
-  index: number;
-}
-
-interface HeroRenderItem {
-  item: HeroSlide;
-  index: number;
-}
-
-export default function HomeScreen() {
-  const router = useRouter();
-  const { user } = useAuthStore();
-  const [shops, setShops] = useState<Shop[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function CustomerHomeScreen() {
   const [activeSlide, setActiveSlide] = useState(0);
-  const sliderRef = useRef<FlatList>(null);
-  const windowWidth = Dimensions.get("window").width;
+  const [shops, setShops] = useState<(Shop & { distanceKm?: number })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationStatus, setLocationStatus] = useState<string>('');
+  
+  const { user } = useAuthStore();
 
-  // Fetch shops from Firestore
-  useEffect(() => {
-    const fetchShops = async () => {
-      try {
-        const shopsQuery = query(collection(db, "shops"), orderBy("name"));
-        const querySnapshot = await getDocs(shopsQuery);
-        
-        const shopsData: Shop[] = [];
-        querySnapshot.forEach((doc) => {
-          shopsData.push({ id: doc.id, ...doc.data() } as Shop);
-        });
-        
-        setShops(shopsData);
-      } catch (error) {
-        console.error("Error fetching shops:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchShops();
-  }, []);
-
-  // Auto-scroll hero slider
+  // Auto-rotate slider
   useEffect(() => {
     const interval = setInterval(() => {
-      const nextSlide = (activeSlide + 1) % heroSlides.length;
-      setActiveSlide(nextSlide);
-      sliderRef.current?.scrollToIndex({
-        index: nextSlide,
-        animated: true,
-      });
-    }, 5000);
-
+      setActiveSlide((prev) => (prev + 1) % SLIDER_DATA.length);
+    }, 4000);
     return () => clearInterval(interval);
-  }, [activeSlide]);
+  }, []);
 
-  // Render hero slide
-  const renderHeroSlide = ({ item, index }: HeroRenderItem) => (
-    <View style={{ width: windowWidth, height: 200 }}>
-      <Image
-        source={{ uri: item.imageUrl }}
-        style={{
-          width: "100%",
-          height: "100%",
-          borderRadius: 16,
-        }}
-      />
-      <View
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: 16,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          borderBottomLeftRadius: 16,
-          borderBottomRightRadius: 16,
-        }}
-      >
-        <MotiView
-          from={{ opacity: 0, translateY: 10 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: "timing", duration: 500 }}
-          key={`title-${item.id}`}
-        >
-          <Text
-            style={{
-              fontSize: 24,
-              fontWeight: "bold",
-              color: "#F3F4F6", // text-primary-light
-            }}
+  // Fetch user location and shops
+  useEffect(() => {
+    fetchLocationAndShops();
+  }, []);
+
+  const fetchLocationAndShops = async () => {
+    setLoading(true);
+    setLocationStatus('Getting your location...');
+
+    try {
+      // Request location permissions
+      const permissions = await requestLocationPermissions();
+      
+      if (permissions?.status === 'granted') {
+        const location = await getCurrentUserLocation();
+        if (location) {
+          setUserLocation(location);
+          setLocationStatus('Location found');
+        } else {
+          setLocationStatus('Could not get location');
+        }
+      } else {
+        setLocationStatus('Location permission denied');
+      }
+
+      // Fetch all shops
+      const { data: shopsData, error } = await supabase
+        .from('shops')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching shops:', error);
+        Alert.alert('Error', 'Failed to load shops');
+        return;
+      }
+
+      if (shopsData && userLocation) {
+        // Filter shops within 20km radius
+        const nearbyShops = filterAndSortShopsByDistance(
+          shopsData,
+          userLocation.latitude,
+          userLocation.longitude,
+          20 // 20km radius
+        );
+        setShops(nearbyShops);
+        setLocationStatus(`Found ${nearbyShops.length} shops within 20km`);
+      } else {
+        setShops(shopsData || []);
+        setLocationStatus('Showing all shops');
+      }
+    } catch (error) {
+      console.error('Error in fetchLocationAndShops:', error);
+      setLocationStatus('Error loading data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleShopPress = (shopId: string) => {
+    router.push(`/(customer)/shop/${shopId}`);
+  };
+
+  const handleViewOnMap = () => {
+    router.push('/(customer)/explore-map');
+  };
+
+  const renderSliderItem = ({ item, index }: { item: typeof SLIDER_DATA[0]; index: number }) => (
+    <View className="w-screen px-6">
+      <ModernCard className="h-48">
+        <View className="flex-1 justify-center items-center">
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
           >
-            {item.title}
-          </Text>
-        </MotiView>
-        <Text
-          style={{
-            fontSize: 16,
-            color: "#A1A1AA", // text-secondary-light
-          }}
-        >
-          {item.description}
-        </Text>
-      </View>
+            <Text className="text-primary-light text-2xl font-bold text-center mb-2">
+              {item.title}
+            </Text>
+            <Text className="text-secondary-light text-base text-center">
+              {item.description}
+            </Text>
+          </MotiView>
+        </View>
+      </ModernCard>
     </View>
   );
 
-  // Render shop item
-  const renderShopItem = ({ item, index }: ShopRenderItem) => (
-    <Pressable
-      onPress={() => router.push(`/shop/${item.id}`)}
-      style={({ pressed }) => ({ marginBottom: 16 })}
-    >
+  const renderShopItem = ({ item, index }: { item: Shop & { distanceKm?: number }; index: number }) => (
+    <Pressable onPress={() => handleShopPress(item.id)} className="mb-4">
       {({ pressed }) => (
         <ModernCard pressed={pressed} delay={index * 100}>
-          <Image
-            source={{ uri: item.image_url || "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" }}
-            style={{
-              width: "100%",
-              height: 160,
-              borderRadius: 12,
-              marginBottom: 12,
-            }}
-          />
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "bold",
-              color: "#F3F4F6", // text-primary-light
-              marginBottom: 4,
-            }}
-          >
-            {item.name}
-          </Text>
-          <Text
-            style={{
-              fontSize: 16,
-              color: "#A1A1AA", // text-secondary-light
-              marginBottom: 8,
-            }}
-            numberOfLines={2}
-          >
-            {item.description}
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginBottom: 4,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: "bold",
-                color: "#38BDF8", // text-accent-secondary
-                marginRight: 4,
-              }}
-            >
-              {item.average_rating ? item.average_rating.toFixed(1) : "New"} 
-            </Text>
-            <Text style={{ color: "#A1A1AA" }}>
-              {item.average_rating ? "/ 5.0" : ""}
-            </Text>
+          <View className="space-y-3">
+            <View className="h-40 bg-dark-background rounded-lg items-center justify-center">
+              <Text className="text-secondary-light text-lg">
+                {item.name}
+              </Text>
+            </View>
+            
+            <View>
+              <Text className="text-primary-light text-lg font-bold">
+                {item.name}
+              </Text>
+              <Text className="text-secondary-light text-sm mt-1">
+                {item.description || 'Professional barbering services'}
+              </Text>
+              <Text className="text-secondary-light text-xs mt-1">
+                {item.address}
+              </Text>
+              
+              <View className="flex-row items-center justify-between mt-2">
+                {item.average_rating && (
+                  <View className="flex-row items-center">
+                    <Text className="text-brand-primary text-sm font-semibold">
+                      ⭐ {item.average_rating.toFixed(1)}
+                    </Text>
+                  </View>
+                )}
+                
+                {item.distanceKm && (
+                  <Text className="text-secondary-light text-xs italic">
+                    {item.distanceKm.toFixed(1)} km away
+                  </Text>
+                )}
+              </View>
+            </View>
           </View>
-          <Text
-            style={{
-              fontSize: 14,
-              color: "#A1A1AA", // text-secondary-light
-            }}
-          >
-            {item.address}
-          </Text>
         </ModernCard>
       )}
     </Pressable>
   );
 
-  // Render pagination dots
-  const renderPaginationDots = () => (
-    <View
-      style={{
-        flexDirection: "row",
-        justifyContent: "center",
-        marginTop: 8,
-        marginBottom: 24,
-      }}
-    >
-      {heroSlides.map((_, index) => (
-        <MotiView
-          key={index}
-          animate={{
-            scale: activeSlide === index ? 1.2 : 1,
-            backgroundColor: activeSlide === index ? "#38BDF8" : "#52525B", // accent-secondary : dark-border
-          }}
-          transition={{ type: "timing", duration: 300 }}
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            marginHorizontal: 4,
-          }}
-        />
-      ))}
-    </View>
-  );
-
-  // Render loading skeleton
-  const renderSkeleton = () => (
-    <>
-      <View
-        style={{
-          height: 200,
-          borderRadius: 16,
-          backgroundColor: "#52525B", // dark-border
-          marginBottom: 16,
-        }}
-      />
-      {[1, 2, 3].map((_, index) => (
-        <View
-          key={index}
-          style={{
-            height: 280,
-            borderRadius: 16,
-            backgroundColor: "#27272A", // dark-card
-            marginBottom: 16,
-            padding: 16,
-          }}
-        >
-          <View
-            style={{
-              height: 160,
-              borderRadius: 12,
-              backgroundColor: "#52525B", // dark-border
-              marginBottom: 12,
-            }}
-          />
-          <View
-            style={{
-              height: 24,
-              width: "60%",
-              borderRadius: 4,
-              backgroundColor: "#52525B", // dark-border
-              marginBottom: 8,
-            }}
-          />
-          <View
-            style={{
-              height: 16,
-              width: "90%",
-              borderRadius: 4,
-              backgroundColor: "#52525B", // dark-border
-              marginBottom: 8,
-            }}
-          />
-          <View
-            style={{
-              height: 16,
-              width: "40%",
-              borderRadius: 4,
-              backgroundColor: "#52525B", // dark-border
-            }}
-          />
-        </View>
-      ))}
-    </>
-  );
-
   return (
-    <View style={{ flex: 1, padding: 16 }}>
-      <MotiView
-        from={{ opacity: 0, translateY: -10 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: "timing", duration: 500 }}
-      >
-        <Text
-          style={{
-            fontSize: 32,
-            fontWeight: "bold",
-            color: "#F3F4F6", // text-primary-light
-            marginBottom: 16,
-          }}
+    <ScrollView 
+      className="flex-1 bg-dark-background"
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header */}
+      <View className="px-6 pt-12 pb-6">
+        <MotiView
+          from={{ opacity: 0, translateY: -20 }}
+          animate={{ opacity: 1, translateY: 0 }}
         >
-          Welcome, {user?.first_name || "Customer"}!
-        </Text>
-      </MotiView>
+          <Text className="text-primary-light text-4xl font-extrabold">
+            Welcome{user?.first_name ? `, ${user.first_name}` : ''}!
+          </Text>
+          <Text className="text-secondary-light text-lg mt-1">
+            Find the perfect barber near you
+          </Text>
+        </MotiView>
+      </View>
 
-      {loading ? (
-        renderSkeleton()
-      ) : (
+      {/* Slider */}
+      <View className="mb-8">
         <FlatList
-          data={shops}
-          renderItem={renderShopItem}
+          data={SLIDER_DATA}
+          renderItem={renderSliderItem}
           keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <>
-              <FlatList
-                ref={sliderRef}
-                data={heroSlides}
-                renderItem={renderHeroSlide}
-                keyExtractor={(item) => item.id}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={(event) => {
-                  const slideIndex = Math.floor(
-                    event.nativeEvent.contentOffset.x / windowWidth
-                  );
-                  setActiveSlide(slideIndex);
-                }}
-              />
-              {renderPaginationDots()}
-              <Text
-                style={{
-                  fontSize: 24,
-                  fontWeight: "bold",
-                  color: "#F3F4F6", // text-primary-light
-                  marginBottom: 16,
-                }}
-              >
-                Explore Shops
-              </Text>
-            </>
-          }
-          ListEmptyComponent={
-            <ModernCard>
-              <Text
-                style={{
-                  fontSize: 18,
-                  textAlign: "center",
-                  color: "#F3F4F6", // text-primary-light
-                }}
-              >
-                No shops available at the moment.
-              </Text>
-            </ModernCard>
-          }
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(e) => {
+            const index = Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width);
+            setActiveSlide(index);
+          }}
         />
-      )}
-    </View>
+        
+        {/* Pagination dots */}
+        <View className="flex-row justify-center mt-4 space-x-2">
+          {SLIDER_DATA.map((_, index) => (
+            <MotiView
+              key={index}
+              animate={{
+                scale: index === activeSlide ? 1.2 : 1,
+                backgroundColor: index === activeSlide ? '#827092' : '#52525B',
+              }}
+              className="w-2 h-2 rounded-full"
+            />
+          ))}
+        </View>
+      </View>
+
+      <View className="px-6">
+        {/* Location Status */}
+        <ModernCard delay={400} className="mb-6">
+          <Text className="text-secondary-light text-center">
+            📍 {locationStatus}
+          </Text>
+        </ModernCard>
+
+        {/* Nearby Shops Section */}
+        <View className="flex-row justify-between items-center mb-4">
+          <Text className="text-primary-light text-3xl font-semibold">
+            Nearby Shops
+          </Text>
+          
+          <Pressable onPress={handleViewOnMap}>
+            {({ pressed }) => (
+              <MotiView
+                animate={{ scale: pressed ? 0.96 : 1 }}
+                className="bg-brand-secondary py-2 px-4 rounded-xl"
+              >
+                <Text className="text-primary-light text-sm font-semibold">
+                  View on Map
+                </Text>
+              </MotiView>
+            )}
+          </Pressable>
+        </View>
+
+        {/* Shops List */}
+        {loading ? (
+          <View className="items-center py-12">
+            <ActivityIndicator size="large" color="#CB9C5E" />
+            <Text className="text-secondary-light mt-4">
+              Loading shops...
+            </Text>
+          </View>
+        ) : shops.length === 0 ? (
+          <ModernCard>
+            <Text className="text-secondary-light text-center">
+              No shops found nearby. Try enabling location services or check back later.
+            </Text>
+          </ModernCard>
+        ) : (
+          <FlatList
+            data={shops}
+            renderItem={renderShopItem}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </View>
+    </ScrollView>
   );
 }
+

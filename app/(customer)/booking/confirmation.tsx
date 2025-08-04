@@ -107,7 +107,7 @@ export default function BookingConfirmationScreen() {
       <MotiView
         from={{ opacity: 0, translateY: 20 }}
         animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: "timing", duration: 500 }}
+        
       >
         <Text
           style={{
@@ -244,7 +244,7 @@ export default function BookingConfirmationScreen() {
           {({ pressed }) => (
             <MotiView
               animate={{ scale: pressed ? 0.98 : 1 }}
-              transition={{ type: "timing", duration: 150 }}
+              
               style={{
                 backgroundColor: "#8B5CF6", // bg-accent-primary
                 paddingVertical: 16,

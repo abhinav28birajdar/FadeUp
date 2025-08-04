@@ -140,7 +140,7 @@ export default function DashboardScreen() {
       <MotiView
         from={{ opacity: 0, translateY: -10 }}
         animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: "timing", duration: 500 }}
+        
       >
         <Text
           style={{

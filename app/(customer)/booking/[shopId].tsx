@@ -1,13 +1,21 @@
-import { useState, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Platform } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { MotiView } from "moti";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import { collection, query, where, getDocs, addDoc, doc, runTransaction, Timestamp, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuthStore } from "@/store/authStore";
-import { Service, Shop } from "@/types/firebaseModels";
-import ModernCard from "@/components/ModernCard";
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { MotiView } from 'moti';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
+} from 'react-native';
+import { ModernCard } from '../../../src/components/ModernCard';
+import { supabase } from '../../../src/lib/supabase';
+import { useAuthStore } from '../../../src/store/authStore';
+import { Service, Shop } from '../../../src/types/supabase';
 
 // Available time slots
 const TIME_SLOTS = [
@@ -41,25 +49,26 @@ export default function BookingScreen() {
     const fetchShopAndServices = async () => {
       try {
         // Fetch shop details
-        const shopDoc = await getDoc(doc(db, "shops", shopId as string));
+        const { data: shopData, error: shopError } = await supabase
+          .from('shops')
+          .select('*')
+          .eq('id', shopId as string)
+          .single();
         
-        if (shopDoc.exists()) {
-          setShop({ id: shopDoc.id, ...shopDoc.data() } as Shop);
+        if (shopError) throw shopError;
+        
+        if (shopData) {
+          setShop(shopData);
           
           // Fetch services for this shop
-          const servicesQuery = query(
-            collection(db, "services"),
-            where("shop_id", "==", shopDoc.id)
-          );
+          const { data: servicesData, error: servicesError } = await supabase
+            .from('services')
+            .select('*')
+            .eq('shop_id', shopData.id);
           
-          const servicesSnapshot = await getDocs(servicesQuery);
-          const servicesData: Service[] = [];
+          if (servicesError) throw servicesError;
           
-          servicesSnapshot.forEach((doc) => {
-            servicesData.push({ id: doc.id, ...doc.data() } as Service);
-          });
-          
-          setServices(servicesData);
+          setServices(servicesData || []);
         }
       } catch (error) {
         console.error("Error fetching shop details:", error);
@@ -114,13 +123,10 @@ export default function BookingScreen() {
       // Format date as YYYY-MM-DD
       const formattedDate = bookingDate.toISOString().split("T")[0];
 
-      // Create booking in a transaction
-      await runTransaction(db, async (transaction) => {
-        // Create booking document
-        const bookingRef = doc(collection(db, "bookings"));
-        
-        const bookingData = {
-          id: bookingRef.id,
+      // Create booking
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
           customer_id: user?.id,
           shop_id: shopId,
           service_ids: selectedServiceIds,
@@ -129,45 +135,37 @@ export default function BookingScreen() {
           total_price: totalPrice,
           status: "pending",
           feedback_comment: feedbackComment || null,
-          created_at: Timestamp.now(),
-        };
-        
-        transaction.set(bookingRef, bookingData);
-        
-        // Find the highest position in the queue
-        const queueQuery = query(
-          collection(db, "queue"),
-          where("shop_id", "==", shopId),
-          where("status", "==", "waiting")
-        );
-        
-        const queueSnapshot = await getDocs(queueQuery);
-        let highestPosition = 0;
-        
-        queueSnapshot.forEach((doc) => {
-          const position = doc.data().position;
-          if (position > highestPosition) {
-            highestPosition = position;
-          }
-        });
-        
-        // Create queue entry
-        const queueRef = doc(collection(db, "queue"));
-        
-        const queueData = {
-          id: queueRef.id,
-          booking_id: bookingRef.id,
+        })
+        .select()
+        .single();
+
+      if (bookingError) throw bookingError;
+
+      // Find the highest position in the queue
+      const { data: queueData, error: queueError } = await supabase
+        .from('queue_entries')
+        .select('position')
+        .eq('shop_id', shopId)
+        .eq('status', 'waiting')
+        .order('position', { ascending: false })
+        .limit(1);
+
+      if (queueError) throw queueError;
+
+      const highestPosition = queueData && queueData.length > 0 ? queueData[0].position : 0;
+
+      // Create queue entry
+      const { error: queueInsertError } = await supabase
+        .from('queue_entries')
+        .insert({
+          booking_id: bookingData.id,
           customer_id: user?.id,
           shop_id: shopId,
           position: highestPosition + 1,
           status: "waiting",
-          created_at: Timestamp.now(),
-        };
-        
-        transaction.set(queueRef, queueData);
-        
-        return { bookingId: bookingRef.id };
-      });
+        });
+
+      if (queueInsertError) throw queueInsertError;
       
       Alert.alert("Success", "Booking confirmed successfully!");
       router.replace("/booking/confirmation");
@@ -204,7 +202,6 @@ export default function BookingScreen() {
       <MotiView
         from={{ opacity: 0, translateY: -10 }}
         animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: "timing", duration: 500 }}
       >
         <Text
           style={{
@@ -246,7 +243,6 @@ export default function BookingScreen() {
                   ? "#8B5CF6" // border-accent-primary
                   : "#52525B", // border-dark-border
               }}
-              transition={{ type: "timing", duration: 200 }}
               style={{
                 flexDirection: "row",
                 justifyContent: "space-between",
@@ -407,7 +403,6 @@ export default function BookingScreen() {
                     ? "#8B5CF6" // border-accent-primary
                     : "#52525B", // border-dark-border
                 }}
-                transition={{ type: "timing", duration: 200 }}
                 style={{
                   padding: 8,
                   borderRadius: 8,
@@ -449,7 +444,6 @@ export default function BookingScreen() {
           animate={{ 
             borderColor: commentFocused ? "#38BDF8" : "#52525B" // accent-secondary : dark-border
           }}
-          transition={{ type: "timing", duration: 200 }}
           style={{
             borderWidth: 1,
             borderRadius: 12,
@@ -486,7 +480,6 @@ export default function BookingScreen() {
           {({ pressed }) => (
             <MotiView
               animate={{ scale: pressed ? 0.98 : 1 }}
-              transition={{ type: "timing", duration: 150 }}
               style={{
                 backgroundColor: "#10B981", // bg-status-completed
                 paddingVertical: 20,

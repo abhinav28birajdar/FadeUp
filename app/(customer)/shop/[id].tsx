@@ -1,268 +1,365 @@
-import { useState, useEffect } from "react";
-import { View, Text, ScrollView, Image, Pressable, ActivityIndicator } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { MotiView } from "moti";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { Shop, Service } from "@/types/firebaseModels";
-import ModernCard from "@/components/ModernCard";
+import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { MotiView } from 'moti';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Image,
+  Linking,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
+import { ModernCard } from '../../../src/components/ModernCard';
+import { supabase } from '../../../src/lib/supabase';
+import { useAuthStore } from '../../../src/store/authStore';
+import { Service, Shop } from '../../../src/types/supabase';
+import { calculateDistance } from '../../../src/utils/mapHelpers';
 
-export default function ShopDetailScreen() {
-  const { id } = useLocalSearchParams();
+const ShopDetailScreen = () => {
   const router = useRouter();
+  const { id } = useLocalSearchParams();
+  const { user } = useAuthStore();
+  
   const [shop, setShop] = useState<Shop | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [queueLength, setQueueLength] = useState(0);
+  const [estimatedWaitTime, setEstimatedWaitTime] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
 
   useEffect(() => {
-    const fetchShopAndServices = async () => {
-      try {
-        // Fetch shop details
-        const shopDoc = await getDoc(doc(db, "shops", id as string));
-        
-        if (shopDoc.exists()) {
-          setShop({ id: shopDoc.id, ...shopDoc.data() } as Shop);
-          
-          // Fetch services for this shop
-          const servicesQuery = query(
-            collection(db, "services"),
-            where("shop_id", "==", shopDoc.id)
-          );
-          
-          const servicesSnapshot = await getDocs(servicesQuery);
-          const servicesData: Service[] = [];
-          
-          servicesSnapshot.forEach((doc) => {
-            servicesData.push({ id: doc.id, ...doc.data() } as Service);
-          });
-          
-          setServices(servicesData);
-        }
-      } catch (error) {
-        console.error("Error fetching shop details:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (id) {
-      fetchShopAndServices();
-    }
+    loadShopDetails();
+    getUserLocation();
   }, [id]);
+
+  const getUserLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const location = await Location.getCurrentPositionAsync({});
+        setUserLocation(location);
+      }
+    } catch (error) {
+      console.log('Error getting location:', error);
+    }
+  };
+
+  const loadShopDetails = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch shop details
+      const { data: shopData, error: shopError } = await supabase
+        .from('shops')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (shopError) throw shopError;
+      setShop(shopData);
+
+      // Fetch services
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select('*')
+        .eq('shop_id', id)
+        .eq('is_active', true)
+        .order('price', { ascending: true });
+
+      if (servicesError) throw servicesError;
+      setServices(servicesData || []);
+
+      // Fetch queue information
+      const { data: queueData, error: queueError } = await supabase
+        .from('queue')
+        .select('*')
+        .eq('shop_id', id)
+        .eq('status', 'waiting')
+        .order('queue_position', { ascending: true });
+
+      if (queueError) throw queueError;
+      
+      const queueCount = queueData?.length || 0;
+      setQueueLength(queueCount);
+
+      // Calculate estimated wait time (assuming 25 minutes per person)
+      setEstimatedWaitTime(queueCount * 25);
+
+    } catch (error) {
+      console.error('Error loading shop details:', error);
+      Alert.alert('Error', 'Failed to load shop details');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadShopDetails();
+  };
+
+  const handleBookService = (service: Service) => {
+    router.push({
+      pathname: '/booking/[shopId]',
+      params: { shopId: id, serviceId: service.id },
+    });
+  };
+
+  const handleCallShop = () => {
+    if (shop?.phone_number) {
+      Linking.openURL(`tel:${shop.phone_number}`);
+    }
+  };
+
+  const handleGetDirections = () => {
+    if (shop?.latitude && shop?.longitude) {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${shop.latitude},${shop.longitude}`;
+      Linking.openURL(url);
+    }
+  };
+
+  const handleViewQueue = () => {
+    router.push({
+      pathname: '/(customer)/queue',
+      params: { shopId: id },
+    });
+  };
+
+  const formatQueueTime = (minutes: number) => {
+    if (minutes < 60) return `${minutes} mins`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMins = minutes % 60;
+    return `${hours}h ${remainingMins}m`;
+  };
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+      <View className="flex-1 bg-dark-900 justify-center items-center">
+        <MotiView
+          animate={{
+            rotateZ: '360deg',
+          }}
+          transition={{
+            loop: true,
+            duration: 1000,
+          }}
+        >
+          <Ionicons name="cut" size={48} color="#CB9C5E" />
+        </MotiView>
+        <Text className="text-gold-400 text-lg mt-4">Loading shop details...</Text>
       </View>
     );
   }
 
   if (!shop) {
     return (
-      <View style={{ flex: 1, padding: 16, justifyContent: "center", alignItems: "center" }}>
-        <ModernCard>
-          <Text style={{ fontSize: 18, color: "#F3F4F6", textAlign: "center" }}>
-            Shop not found
-          </Text>
-        </ModernCard>
+      <View className="flex-1 bg-dark-900 justify-center items-center">
+        <Ionicons name="alert-circle" size={64} color="#EF4444" />
+        <Text className="text-white text-xl mt-4">Shop not found</Text>
+        <Pressable
+          onPress={() => router.back()}
+          className="mt-6 px-6 py-3 bg-gold-500 rounded-xl"
+        >
+          <Text className="text-dark-900 font-semibold">Go Back</Text>
+        </Pressable>
       </View>
     );
   }
 
+  const distance = userLocation && shop.latitude && shop.longitude
+    ? calculateDistance(
+        userLocation.coords.latitude,
+        userLocation.coords.longitude,
+        shop.latitude,
+        shop.longitude
+      )
+    : null;
+
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
-      <MotiView
-        from={{ opacity: 0, translateY: -10 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: "timing", duration: 500 }}
-      >
-        <Text
-          style={{
-            fontSize: 32,
-            fontWeight: "bold",
-            color: "#F3F4F6", // text-primary-light
-            marginBottom: 16,
-          }}
-        >
-          {shop.name}
-        </Text>
-      </MotiView>
-
-      <MotiView
-        from={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ type: "timing", duration: 800 }}
-      >
+    <ScrollView
+      className="flex-1 bg-dark-900"
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#CB9C5E" />
+      }
+    >
+      {/* Header Image */}
+      <View className="relative h-64">
         <Image
-          source={{ uri: shop.image_url || "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" }}
-          style={{
-            width: "100%",
-            height: 250,
-            borderRadius: 16,
-            marginBottom: 16,
+          source={{
+            uri: shop.image_url || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800'
           }}
+          className="w-full h-full"
+          resizeMode="cover"
         />
-      </MotiView>
-
-      <ModernCard delay={200}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
+        <View className="absolute inset-0 bg-black/30" />
+        
+        {/* Back Button */}
+        <Pressable
+          onPress={() => router.back()}
+          className="absolute top-12 left-4 w-10 h-10 bg-black/50 rounded-full items-center justify-center"
         >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "bold",
-              color: "#38BDF8", // text-accent-secondary
-              marginRight: 4,
-            }}
-          >
-            {shop.average_rating ? shop.average_rating.toFixed(1) : "New"} 
-          </Text>
-          <Text style={{ color: "#A1A1AA", fontSize: 16 }}>
-            {shop.average_rating ? "/ 5.0" : ""}
-          </Text>
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </Pressable>
+
+        {/* Shop Rating */}
+        <View className="absolute top-12 right-4 bg-black/50 px-3 py-1 rounded-full flex-row items-center">
+          <Ionicons name="star" size={16} color="#CB9C5E" />
+          <Text className="text-white font-semibold ml-1">{shop.average_rating?.toFixed(1) || 'N/A'}</Text>
         </View>
-        <Text
-          style={{
-            fontSize: 16,
-            color: "#A1A1AA", // text-secondary-light
-          }}
-        >
-          {shop.address}
-        </Text>
-      </ModernCard>
+      </View>
 
-      <ModernCard delay={300}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "bold",
-            color: "#F3F4F6", // text-primary-light
-            marginBottom: 8,
-          }}
-        >
-          About
-        </Text>
+      <View className="px-4 pb-8">
+        {/* Shop Info */}
         <MotiView
-          animate={{ height: descriptionExpanded ? "auto" : 80 }}
-          transition={{ type: "timing", duration: 300 }}
-          style={{ overflow: "hidden" }}
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 100 }}
+          className="-mt-8"
         >
-          <Text
-            style={{
-              fontSize: 16,
-              color: "#A1A1AA", // text-secondary-light
-              lineHeight: 24,
-            }}
-          >
-            {shop.description}
-          </Text>
+          <ModernCard className="p-6">
+            <Text className="text-white text-2xl font-bold mb-2">{shop.name}</Text>
+            
+            <View className="flex-row items-center mb-3">
+              <Ionicons name="location" size={16} color="#CB9C5E" />
+              <Text className="text-gray-300 ml-2 flex-1">{shop.address}</Text>
+              {distance && (
+                <Text className="text-gold-400 font-semibold">{distance.toFixed(1)} km</Text>
+              )}
+            </View>
+
+            {shop.description && (
+              <Text className="text-gray-300 mb-4 leading-6">{shop.description}</Text>
+            )}
+
+            {/* Action Buttons */}
+            <View className="flex-row space-x-3">
+              <Pressable
+                onPress={handleCallShop}
+                className="flex-1 bg-gold-500 py-3 rounded-xl flex-row items-center justify-center"
+              >
+                <Ionicons name="call" size={20} color="#1A1A1A" />
+                <Text className="text-dark-900 font-semibold ml-2">Call</Text>
+              </Pressable>
+              
+              <Pressable
+                onPress={handleGetDirections}
+                className="flex-1 bg-dark-700 py-3 rounded-xl flex-row items-center justify-center border border-gold-500/30"
+              >
+                <Ionicons name="navigate" size={20} color="#CB9C5E" />
+                <Text className="text-gold-400 font-semibold ml-2">Directions</Text>
+              </Pressable>
+            </View>
+          </ModernCard>
         </MotiView>
-        {shop.description && shop.description.length > 150 && (
-          <Pressable
-            onPress={() => setDescriptionExpanded(!descriptionExpanded)}
-            style={{ marginTop: 8 }}
-          >
-            <Text
-              style={{
-                fontSize: 16,
-                color: "#38BDF8", // text-accent-secondary
-                fontWeight: "bold",
-              }}
+
+        {/* Queue Status */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 200 }}
+          className="mt-4"
+        >
+          <ModernCard className="p-4">
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-white text-lg font-semibold">Current Queue</Text>
+              <Pressable onPress={handleViewQueue}>
+                <Text className="text-gold-400 font-medium">View Details</Text>
+              </Pressable>
+            </View>
+            
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center">
+                <View className="w-3 h-3 bg-gold-500 rounded-full mr-2" />
+                <Text className="text-gray-300">{queueLength} people waiting</Text>
+              </View>
+              
+              <Text className="text-gold-400 font-semibold">
+                ~{formatQueueTime(estimatedWaitTime)}
+              </Text>
+            </View>
+          </ModernCard>
+        </MotiView>
+
+        {/* Services */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 300 }}
+          className="mt-4"
+        >
+          <Text className="text-white text-xl font-bold mb-3">Services</Text>
+          
+          {services.map((service, index) => (
+            <MotiView
+              key={service.id}
+              from={{ opacity: 0, translateX: -20 }}
+              animate={{ opacity: 1, translateX: 0 }}
+              transition={{ delay: 400 + index * 100 }}
+              className="mb-3"
             >
-              {descriptionExpanded ? "Show Less" : "Read More"}
-            </Text>
-          </Pressable>
-        )}
-      </ModernCard>
-
-      <Text
-        style={{
-          fontSize: 24,
-          fontWeight: "bold",
-          color: "#F3F4F6", // text-primary-light
-          marginTop: 24,
-          marginBottom: 16,
-        }}
-      >
-        Our Services
-      </Text>
-
-      {services.length === 0 ? (
-        <ModernCard>
-          <Text
-            style={{
-              fontSize: 16,
-              color: "#A1A1AA", // text-secondary-light
-              textAlign: "center",
-            }}
-          >
-            No services available for this shop.
-          </Text>
-        </ModernCard>
-      ) : (
-        services.map((service, index) => (
-          <Pressable
-            key={service.id}
-            onPress={() => router.push(`/service/${service.id}`)}
-            style={({ pressed }) => ({ marginBottom: 16 })}
-          >
-            {({ pressed }) => (
-              <ModernCard pressed={pressed} delay={400 + index * 100}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        fontWeight: "bold",
-                        color: "#F3F4F6", // text-primary-light
-                        marginBottom: 4,
-                      }}
-                    >
-                      {service.name}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: "#A1A1AA", // text-secondary-light
-                      }}
-                    >
-                      {service.duration} minutes
-                    </Text>
-                    {service.description && (
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: "#A1A1AA", // text-secondary-light
-                          marginTop: 4,
-                        }}
-                        numberOfLines={2}
-                      >
-                        {service.description}
-                      </Text>
-                    )}
-                  </View>
-                  <Text
-                    style={{
-                      fontSize: 18,
-                      fontWeight: "bold",
-                      color: "#10B981", // text-status-completed
-                    }}
-                  >
-                    ${service.price.toFixed(2)}
+              <ModernCard className="p-4">
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className="text-white text-lg font-semibold flex-1">{service.name}</Text>
+                  <Text className="text-gold-400 text-xl font-bold">₹{service.price}</Text>
+                </View>
+                
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-gray-300 flex-1">
+                    {service.description} • {service.duration} mins
                   </Text>
+                  
+                  <Pressable
+                    onPress={() => handleBookService(service)}
+                    className="bg-gold-500 px-4 py-2 rounded-lg ml-3"
+                  >
+                    <Text className="text-dark-900 font-semibold">Book</Text>
+                  </Pressable>
                 </View>
               </ModernCard>
-            )}
-          </Pressable>
-        ))
-      )}
+            </MotiView>
+          ))}
+          
+          {services.length === 0 && (
+            <ModernCard className="p-6 items-center">
+              <Ionicons name="cut-outline" size={48} color="#6B7280" />
+              <Text className="text-gray-400 text-center mt-3">
+                No services available at the moment
+              </Text>
+            </ModernCard>
+          )}
+        </MotiView>
+
+        {/* Shop Hours */}
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ delay: 500 }}
+          className="mt-4"
+        >
+          <ModernCard className="p-4">
+            <Text className="text-white text-lg font-semibold mb-3">Opening Hours</Text>
+            
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center">
+                <Ionicons name="time" size={20} color="#CB9C5E" />
+                <Text className="text-gray-300 ml-2">Daily</Text>
+              </View>
+              
+              <Text className="text-white font-medium">
+                9:00 AM - 8:00 PM
+              </Text>
+            </View>
+          </ModernCard>
+        </MotiView>
+      </View>
     </ScrollView>
   );
-}
+};
+
+export default ShopDetailScreen;

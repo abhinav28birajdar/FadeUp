@@ -173,7 +173,7 @@ export default function ShopkeeperQueueScreen() {
       <MotiView
         from={{ opacity: 0, translateY: -10 }}
         animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: "timing", duration: 500 }}
+        
       >
         <Text
           style={{
@@ -283,7 +283,7 @@ export default function ShopkeeperQueueScreen() {
                     {({ pressed }) => (
                       <MotiView
                         animate={{ scale: pressed ? 0.98 : 1 }}
-                        transition={{ type: "timing", duration: 150 }}
+                        
                         style={{
                           backgroundColor: "#10B981", // bg-status-completed
                           paddingVertical: 8,
