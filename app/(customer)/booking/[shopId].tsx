@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { ModernCard } from '../../../src/components/ModernCard';
 import { supabase } from '../../../src/lib/supabase';
+import { createBooking, joinQueue } from '../../../src/lib/supabaseUtils';
 import { useAuthStore } from '../../../src/store/authStore';
 import { Service, Shop } from '../../../src/types/supabase';
 
@@ -30,11 +31,11 @@ export default function BookingScreen() {
   
   const [shop, setShop] = useState<Shop | null>(null);
   const [services, setServices] = useState<Service[]>([]);
-  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [bookingDate, setBookingDate] = useState(new Date());
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [feedbackComment, setFeedbackComment] = useState("");
-  const [commentFocused, setCommentFocused] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [notesFocused, setNotesFocused] = useState(false);
   
   const [loading, setLoading] = useState(true);
   const [bookingLoading, setBookingLoading] = useState(false);
@@ -42,8 +43,7 @@ export default function BookingScreen() {
 
   // Calculate total price
   const totalPrice = services
-    .filter(service => selectedServiceIds.includes(service.id))
-    .reduce((sum, service) => sum + service.price, 0);
+    .find(service => service.id === selectedServiceId)?.price || 0;
 
   useEffect(() => {
     const fetchShopAndServices = async () => {
@@ -64,7 +64,8 @@ export default function BookingScreen() {
           const { data: servicesData, error: servicesError } = await supabase
             .from('services')
             .select('*')
-            .eq('shop_id', shopData.id);
+            .eq('shop_id', shopData.id)
+            .eq('is_active', true);
           
           if (servicesError) throw servicesError;
           
@@ -82,12 +83,8 @@ export default function BookingScreen() {
     }
   }, [shopId]);
 
-  const toggleServiceSelection = (serviceId: string) => {
-    setSelectedServiceIds(prev => 
-      prev.includes(serviceId)
-        ? prev.filter(id => id !== serviceId)
-        : [...prev, serviceId]
-    );
+  const handleServiceSelection = (serviceId: string) => {
+    setSelectedServiceId(serviceId === selectedServiceId ? null : serviceId);
   };
 
   const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
@@ -107,13 +104,18 @@ export default function BookingScreen() {
 
   const handleConfirmBooking = async () => {
     // Validate inputs
-    if (selectedServiceIds.length === 0) {
-      Alert.alert("Error", "Please select at least one service");
+    if (!selectedServiceId) {
+      Alert.alert("Error", "Please select a service");
       return;
     }
 
     if (!selectedSlot) {
       Alert.alert("Error", "Please select a time slot");
+      return;
+    }
+
+    if (!user?.id) {
+      Alert.alert("Error", "Please log in to book");
       return;
     }
 
@@ -123,52 +125,48 @@ export default function BookingScreen() {
       // Format date as YYYY-MM-DD
       const formattedDate = bookingDate.toISOString().split("T")[0];
 
-      // Create booking
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert({
-          customer_id: user?.id,
-          shop_id: shopId,
-          service_ids: selectedServiceIds,
-          booking_date: formattedDate,
-          slot_time: selectedSlot,
-          total_price: totalPrice,
-          status: "pending",
-          feedback_comment: feedbackComment || null,
-        })
-        .select()
-        .single();
+      // Create booking using utility function
+      const bookingResult = await createBooking({
+        customer_id: user.id,
+        shop_id: shopId as string,
+        service_id: selectedServiceId,
+        booking_date: formattedDate,
+        booking_time: selectedSlot,
+        total_price: totalPrice,
+        notes: notes || undefined,
+      });
 
-      if (bookingError) throw bookingError;
+      if (bookingResult.error) {
+        throw bookingResult.error;
+      }
 
-      // Find the highest position in the queue
-      const { data: queueData, error: queueError } = await supabase
-        .from('queue_entries')
-        .select('position')
-        .eq('shop_id', shopId)
-        .eq('status', 'waiting')
-        .order('position', { ascending: false })
-        .limit(1);
+      const booking = bookingResult.data;
+      if (!booking) {
+        throw new Error('Booking creation failed');
+      }
 
-      if (queueError) throw queueError;
+      // Join the queue using utility function
+      const queueResult = await joinQueue({
+        booking_id: booking.id,
+        customer_id: user.id,
+        shop_id: shopId as string,
+      });
 
-      const highestPosition = queueData && queueData.length > 0 ? queueData[0].position : 0;
-
-      // Create queue entry
-      const { error: queueInsertError } = await supabase
-        .from('queue_entries')
-        .insert({
-          booking_id: bookingData.id,
-          customer_id: user?.id,
-          shop_id: shopId,
-          position: highestPosition + 1,
-          status: "waiting",
-        });
-
-      if (queueInsertError) throw queueInsertError;
+      if (queueResult.error) {
+        console.warn('Failed to join queue:', queueResult.error);
+        // Don't fail the entire booking if queue join fails
+      }
       
-      Alert.alert("Success", "Booking confirmed successfully!");
-      router.replace("/booking/confirmation");
+      Alert.alert(
+        "Success", 
+        "Booking confirmed successfully! You've been added to the queue.",
+        [
+          {
+            text: "OK",
+            onPress: () => router.replace("/(customer)/booking/confirmation")
+          }
+        ]
+      );
     } catch (error) {
       console.error("Error creating booking:", error);
       Alert.alert("Error", "Failed to create booking. Please try again.");
@@ -179,17 +177,17 @@ export default function BookingScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+      <View className="flex-1 justify-center items-center bg-dark-background">
+        <ActivityIndicator size="large" color="#CB9C5E" />
       </View>
     );
   }
 
   if (!shop) {
     return (
-      <View style={{ flex: 1, padding: 16, justifyContent: "center", alignItems: "center" }}>
+      <View className="flex-1 p-4 justify-center items-center bg-dark-background">
         <ModernCard>
-          <Text style={{ fontSize: 18, color: "#F3F4F6", textAlign: "center" }}>
+          <Text className="text-lg text-primary-light text-center">
             Shop not found
           </Text>
         </ModernCard>
@@ -198,163 +196,85 @@ export default function BookingScreen() {
   }
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+    <ScrollView className="flex-1 bg-dark-background" contentContainerStyle={{ padding: 16 }}>
       <MotiView
         from={{ opacity: 0, translateY: -10 }}
         animate={{ opacity: 1, translateY: 0 }}
       >
-        <Text
-          style={{
-            fontSize: 32,
-            fontWeight: "bold",
-            color: "#F3F4F6", // text-primary-light
-            marginBottom: 24,
-          }}
-        >
+        <Text className="text-4xl font-bold text-primary-light mb-6">
           Book Your Slot
         </Text>
       </MotiView>
 
-      {/* Choose Services */}
-      <ModernCard delay={100}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "bold",
-            color: "#F3F4F6", // text-primary-light
-            marginBottom: 16,
-          }}
-        >
-          Choose Services
+      {/* Choose Service */}
+      <ModernCard delay={100} className="mb-4">
+        <Text className="text-xl font-bold text-primary-light mb-4">
+          Choose Service
         </Text>
 
         {services.map((service, index) => (
           <Pressable
             key={service.id}
-            onPress={() => toggleServiceSelection(service.id)}
-            style={{ marginBottom: index === services.length - 1 ? 0 : 12 }}
+            onPress={() => handleServiceSelection(service.id)}
+            className={`mb-3 ${index === services.length - 1 ? 'mb-0' : ''}`}
           >
             <MotiView
               animate={{ 
-                backgroundColor: selectedServiceIds.includes(service.id) 
-                  ? "rgba(139, 92, 246, 0.2)" // bg-accent-primary with opacity
+                backgroundColor: selectedServiceId === service.id
+                  ? "rgba(203, 156, 94, 0.2)"
                   : "transparent",
-                borderColor: selectedServiceIds.includes(service.id)
-                  ? "#8B5CF6" // border-accent-primary
-                  : "#52525B", // border-dark-border
+                borderColor: selectedServiceId === service.id
+                  ? "#CB9C5E"
+                  : "#52525B",
               }}
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: 12,
-                borderRadius: 8,
-                borderWidth: 1,
-              }}
+              className="flex-row justify-between items-center p-3 rounded-lg border"
             >
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "bold",
-                    color: "#F3F4F6", // text-primary-light
-                  }}
-                >
+              <View className="flex-1">
+                <Text className="text-base font-bold text-primary-light">
                   {service.name}
                 </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: "#A1A1AA", // text-secondary-light
-                  }}
-                >
+                <Text className="text-sm text-secondary-light">
                   {service.duration} minutes
                 </Text>
+                {service.description && (
+                  <Text className="text-xs text-secondary-light mt-1">
+                    {service.description}
+                  </Text>
+                )}
               </View>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "bold",
-                  color: "#10B981", // text-status-completed
-                }}
-              >
+              <Text className="text-base font-bold text-green-400">
                 ${service.price.toFixed(2)}
               </Text>
             </MotiView>
           </Pressable>
         ))}
 
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            marginTop: 16,
-            paddingTop: 16,
-            borderTopWidth: 1,
-            borderTopColor: "#52525B", // border-dark-border
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "bold",
-              color: "#F3F4F6", // text-primary-light
-            }}
-          >
-            Total
-          </Text>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "bold",
-              color: "#10B981", // text-status-completed
-            }}
-          >
-            ${totalPrice.toFixed(2)}
-          </Text>
-        </View>
+        {selectedServiceId && (
+          <View className="flex-row justify-between mt-4 pt-4 border-t border-gray-600">
+            <Text className="text-lg font-bold text-primary-light">
+              Total
+            </Text>
+            <Text className="text-lg font-bold text-green-400">
+              ${totalPrice.toFixed(2)}
+            </Text>
+          </View>
+        )}
       </ModernCard>
 
       {/* Select Date & Time */}
-      <ModernCard delay={200} style={{ marginTop: 16 }}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "bold",
-            color: "#F3F4F6", // text-primary-light
-            marginBottom: 16,
-          }}
-        >
+      <ModernCard delay={200} className="mb-4">
+        <Text className="text-xl font-bold text-primary-light mb-4">
           Select Date & Time
         </Text>
 
         <Pressable
           onPress={() => setShowDatePicker(true)}
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: 12,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: "#52525B", // border-dark-border
-            marginBottom: 16,
-          }}
+          className="flex-row justify-between items-center p-3 rounded-lg border border-gray-600 mb-4"
         >
-          <Text
-            style={{
-              fontSize: 16,
-              color: "#F3F4F6", // text-primary-light
-            }}
-          >
+          <Text className="text-base text-primary-light">
             {formatDate(bookingDate)}
           </Text>
-          <Text
-            style={{
-              fontSize: 16,
-              color: "#38BDF8", // text-accent-secondary
-            }}
-          >
+          <Text className="text-base text-accent-secondary">
             Change
           </Text>
         </Pressable>
@@ -370,55 +290,33 @@ export default function BookingScreen() {
           />
         )}
 
-        <Text
-          style={{
-            fontSize: 16,
-            fontWeight: "bold",
-            color: "#F3F4F6", // text-primary-light
-            marginBottom: 12,
-          }}
-        >
+        <Text className="text-base font-bold text-primary-light mb-3">
           Available Slots
         </Text>
 
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            marginHorizontal: -4,
-          }}
-        >
+        <View className="flex-row flex-wrap -mx-1">
           {TIME_SLOTS.map((slot) => (
             <Pressable
               key={slot}
               onPress={() => setSelectedSlot(slot)}
-              style={{ width: "33.33%", padding: 4 }}
+              className="w-1/3 p-1"
             >
               <MotiView
                 animate={{ 
                   backgroundColor: selectedSlot === slot 
-                    ? "#8B5CF6" // bg-accent-primary
+                    ? "#CB9C5E"
                     : "transparent",
                   borderColor: selectedSlot === slot
-                    ? "#8B5CF6" // border-accent-primary
-                    : "#52525B", // border-dark-border
+                    ? "#CB9C5E"
+                    : "#52525B",
                 }}
-                style={{
-                  padding: 8,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  alignItems: "center",
-                }}
+                className="p-2 rounded-lg border items-center"
               >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "bold",
-                    color: selectedSlot === slot
-                      ? "#F3F4F6" // text-primary-light
-                      : "#A1A1AA", // text-secondary-light
-                  }}
-                >
+                <Text className={`text-sm font-bold ${
+                  selectedSlot === slot
+                    ? "text-dark-background"
+                    : "text-secondary-light"
+                }`}>
                   {slot}
                 </Text>
               </MotiView>
@@ -427,83 +325,55 @@ export default function BookingScreen() {
         </View>
       </ModernCard>
 
-      {/* Your Message (Optional) */}
-      <ModernCard delay={300} style={{ marginTop: 16 }}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "bold",
-            color: "#F3F4F6", // text-primary-light
-            marginBottom: 16,
-          }}
-        >
-          Your Message (Optional)
+      {/* Notes (Optional) */}
+      <ModernCard delay={300} className="mb-6">
+        <Text className="text-xl font-bold text-primary-light mb-4">
+          Notes (Optional)
         </Text>
 
         <MotiView
           animate={{ 
-            borderColor: commentFocused ? "#38BDF8" : "#52525B" // accent-secondary : dark-border
+            borderColor: notesFocused ? "#38BDF8" : "#52525B"
           }}
-          style={{
-            borderWidth: 1,
-            borderRadius: 12,
-            backgroundColor: "rgba(18, 18, 18, 0.5)", // bg-dark-background/50
-            padding: 16,
-          }}
+          className="border rounded-xl bg-dark-background/50 p-4"
         >
           <TextInput
             placeholder="Any special requests or notes for your booking..."
-            placeholderTextColor="#A1A1AA" // text-secondary-light
-            value={feedbackComment}
-            onChangeText={setFeedbackComment}
-            onFocus={() => setCommentFocused(true)}
-            onBlur={() => setCommentFocused(false)}
+            placeholderTextColor="#A1A1AA"
+            value={notes}
+            onChangeText={setNotes}
+            onFocus={() => setNotesFocused(true)}
+            onBlur={() => setNotesFocused(false)}
             multiline
             numberOfLines={4}
-            style={{ 
-              color: "#F3F4F6", // text-primary-light
-              fontSize: 16,
-              textAlignVertical: "top",
-              height: 100,
-            }}
+            className="color-primary-light text-base h-24"
+            style={{ textAlignVertical: "top" }}
           />
         </MotiView>
       </ModernCard>
 
       {/* Confirm Booking Button */}
-      <View style={{ marginTop: 24, marginBottom: 40 }}>
+      <View className="mb-10">
         <Pressable
           onPress={handleConfirmBooking}
           disabled={bookingLoading}
-          style={({ pressed }) => ({})}
         >
           {({ pressed }) => (
             <MotiView
               animate={{ scale: pressed ? 0.98 : 1 }}
+              className="bg-brand-primary py-5 rounded-2xl items-center justify-center h-15"
               style={{
-                backgroundColor: "#10B981", // bg-status-completed
-                paddingVertical: 20,
-                borderRadius: 16,
-                alignItems: "center",
-                justifyContent: "center",
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.2,
                 shadowRadius: 4,
                 elevation: 3,
-                height: 60,
               }}
             >
               {bookingLoading ? (
-                <ActivityIndicator color="#F3F4F6" />
+                <ActivityIndicator color="#1A1A1A" />
               ) : (
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "bold",
-                    color: "#F3F4F6", // text-primary-light
-                  }}
-                >
+                <Text className="text-lg font-bold text-dark-background">
                   Confirm Booking
                 </Text>
               )}

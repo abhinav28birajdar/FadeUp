@@ -4,20 +4,31 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MotiView } from 'moti';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  Image,
-  Linking,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
+    Alert,
+    Image,
+    Linking,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    Text,
+    View
 } from 'react-native';
 import { ModernCard } from '../../../src/components/ModernCard';
 import { supabase } from '../../../src/lib/supabase';
 import { useAuthStore } from '../../../src/store/authStore';
 import { Service, Shop } from '../../../src/types/supabase';
-import { calculateDistance } from '../../../src/utils/mapHelpers';
+
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Radius of the Earth in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
 
 const ShopDetailScreen = () => {
   const router = useRouter();
@@ -80,7 +91,7 @@ const ShopDetailScreen = () => {
         .select('*')
         .eq('shop_id', id)
         .eq('status', 'waiting')
-        .order('queue_position', { ascending: true });
+        .order('position', { ascending: true });
 
       if (queueError) throw queueError;
       
@@ -105,15 +116,12 @@ const ShopDetailScreen = () => {
   };
 
   const handleBookService = (service: Service) => {
-    router.push({
-      pathname: '/booking/[shopId]',
-      params: { shopId: id, serviceId: service.id },
-    });
+    router.push(`/(customer)/booking/${id}`);
   };
 
   const handleCallShop = () => {
-    if (shop?.phone_number) {
-      Linking.openURL(`tel:${shop.phone_number}`);
+    if (shop?.phone) {
+      Linking.openURL(`tel:${shop.phone}`);
     }
   };
 
@@ -140,7 +148,7 @@ const ShopDetailScreen = () => {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-dark-900 justify-center items-center">
+      <View className="flex-1 bg-dark-background justify-center items-center">
         <MotiView
           animate={{
             rotateZ: '360deg',
@@ -152,21 +160,21 @@ const ShopDetailScreen = () => {
         >
           <Ionicons name="cut" size={48} color="#CB9C5E" />
         </MotiView>
-        <Text className="text-gold-400 text-lg mt-4">Loading shop details...</Text>
+        <Text className="text-brand-primary text-lg mt-4">Loading shop details...</Text>
       </View>
     );
   }
 
   if (!shop) {
     return (
-      <View className="flex-1 bg-dark-900 justify-center items-center">
+      <View className="flex-1 bg-dark-background justify-center items-center">
         <Ionicons name="alert-circle" size={64} color="#EF4444" />
-        <Text className="text-white text-xl mt-4">Shop not found</Text>
+        <Text className="text-primary-light text-xl mt-4">Shop not found</Text>
         <Pressable
           onPress={() => router.back()}
-          className="mt-6 px-6 py-3 bg-gold-500 rounded-xl"
+          className="mt-6 px-6 py-3 bg-brand-primary rounded-xl"
         >
-          <Text className="text-dark-900 font-semibold">Go Back</Text>
+          <Text className="text-dark-background font-semibold">Go Back</Text>
         </Pressable>
       </View>
     );
@@ -183,7 +191,7 @@ const ShopDetailScreen = () => {
 
   return (
     <ScrollView
-      className="flex-1 bg-dark-900"
+      className="flex-1 bg-dark-background"
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#CB9C5E" />
       }
@@ -192,7 +200,7 @@ const ShopDetailScreen = () => {
       <View className="relative h-64">
         <Image
           source={{
-            uri: shop.image_url || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800'
+            uri: shop.images?.[0] || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800'
           }}
           className="w-full h-full"
           resizeMode="cover"
@@ -210,7 +218,7 @@ const ShopDetailScreen = () => {
         {/* Shop Rating */}
         <View className="absolute top-12 right-4 bg-black/50 px-3 py-1 rounded-full flex-row items-center">
           <Ionicons name="star" size={16} color="#CB9C5E" />
-          <Text className="text-white font-semibold ml-1">{shop.average_rating?.toFixed(1) || 'N/A'}</Text>
+          <Text className="text-primary-light font-semibold ml-1">{shop.rating?.toFixed(1) || 'N/A'}</Text>
         </View>
       </View>
 
@@ -223,36 +231,36 @@ const ShopDetailScreen = () => {
           className="-mt-8"
         >
           <ModernCard className="p-6">
-            <Text className="text-white text-2xl font-bold mb-2">{shop.name}</Text>
+            <Text className="text-primary-light text-2xl font-bold mb-2">{shop.name}</Text>
             
             <View className="flex-row items-center mb-3">
               <Ionicons name="location" size={16} color="#CB9C5E" />
-              <Text className="text-gray-300 ml-2 flex-1">{shop.address}</Text>
+              <Text className="text-secondary-light ml-2 flex-1">{shop.address}</Text>
               {distance && (
-                <Text className="text-gold-400 font-semibold">{distance.toFixed(1)} km</Text>
+                <Text className="text-brand-primary font-semibold">{distance.toFixed(1)} km</Text>
               )}
             </View>
 
             {shop.description && (
-              <Text className="text-gray-300 mb-4 leading-6">{shop.description}</Text>
+              <Text className="text-secondary-light mb-4 leading-6">{shop.description}</Text>
             )}
 
             {/* Action Buttons */}
             <View className="flex-row space-x-3">
               <Pressable
                 onPress={handleCallShop}
-                className="flex-1 bg-gold-500 py-3 rounded-xl flex-row items-center justify-center"
+                className="flex-1 bg-brand-primary py-3 rounded-xl flex-row items-center justify-center"
               >
                 <Ionicons name="call" size={20} color="#1A1A1A" />
-                <Text className="text-dark-900 font-semibold ml-2">Call</Text>
+                <Text className="text-dark-background font-semibold ml-2">Call</Text>
               </Pressable>
               
               <Pressable
                 onPress={handleGetDirections}
-                className="flex-1 bg-dark-700 py-3 rounded-xl flex-row items-center justify-center border border-gold-500/30"
+                className="flex-1 bg-brand-secondary py-3 rounded-xl flex-row items-center justify-center border border-brand-primary/30"
               >
                 <Ionicons name="navigate" size={20} color="#CB9C5E" />
-                <Text className="text-gold-400 font-semibold ml-2">Directions</Text>
+                <Text className="text-brand-primary font-semibold ml-2">Directions</Text>
               </Pressable>
             </View>
           </ModernCard>
@@ -267,19 +275,19 @@ const ShopDetailScreen = () => {
         >
           <ModernCard className="p-4">
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-white text-lg font-semibold">Current Queue</Text>
+              <Text className="text-primary-light text-lg font-semibold">Current Queue</Text>
               <Pressable onPress={handleViewQueue}>
-                <Text className="text-gold-400 font-medium">View Details</Text>
+                <Text className="text-brand-primary font-medium">View Details</Text>
               </Pressable>
             </View>
             
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center">
-                <View className="w-3 h-3 bg-gold-500 rounded-full mr-2" />
-                <Text className="text-gray-300">{queueLength} people waiting</Text>
+                <View className="w-3 h-3 bg-brand-primary rounded-full mr-2" />
+                <Text className="text-secondary-light">{queueLength} people waiting</Text>
               </View>
               
-              <Text className="text-gold-400 font-semibold">
+              <Text className="text-brand-primary font-semibold">
                 ~{formatQueueTime(estimatedWaitTime)}
               </Text>
             </View>
@@ -293,32 +301,35 @@ const ShopDetailScreen = () => {
           transition={{ delay: 300 }}
           className="mt-4"
         >
-          <Text className="text-white text-xl font-bold mb-3">Services</Text>
+          <Text className="text-primary-light text-xl font-bold mb-3">Services</Text>
           
           {services.map((service, index) => (
             <MotiView
               key={service.id}
               from={{ opacity: 0, translateX: -20 }}
               animate={{ opacity: 1, translateX: 0 }}
-              transition={{ delay: 400 + index * 100 }}
+              transition={{ 
+                timing: { duration: 500 },
+                delay: 400 + index * 100 
+              }}
               className="mb-3"
             >
               <ModernCard className="p-4">
                 <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-white text-lg font-semibold flex-1">{service.name}</Text>
-                  <Text className="text-gold-400 text-xl font-bold">₹{service.price}</Text>
+                  <Text className="text-primary-light text-lg font-semibold flex-1">{service.name}</Text>
+                  <Text className="text-brand-primary text-xl font-bold">${service.price}</Text>
                 </View>
                 
                 <View className="flex-row items-center justify-between">
-                  <Text className="text-gray-300 flex-1">
+                  <Text className="text-secondary-light flex-1">
                     {service.description} • {service.duration} mins
                   </Text>
                   
                   <Pressable
                     onPress={() => handleBookService(service)}
-                    className="bg-gold-500 px-4 py-2 rounded-lg ml-3"
+                    className="bg-brand-primary px-4 py-2 rounded-lg ml-3"
                   >
-                    <Text className="text-dark-900 font-semibold">Book</Text>
+                    <Text className="text-dark-background font-semibold">Book</Text>
                   </Pressable>
                 </View>
               </ModernCard>
@@ -343,15 +354,15 @@ const ShopDetailScreen = () => {
           className="mt-4"
         >
           <ModernCard className="p-4">
-            <Text className="text-white text-lg font-semibold mb-3">Opening Hours</Text>
+            <Text className="text-primary-light text-lg font-semibold mb-3">Opening Hours</Text>
             
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center">
                 <Ionicons name="time" size={20} color="#CB9C5E" />
-                <Text className="text-gray-300 ml-2">Daily</Text>
+                <Text className="text-secondary-light ml-2">Daily</Text>
               </View>
               
-              <Text className="text-white font-medium">
+              <Text className="text-primary-light font-medium">
                 9:00 AM - 8:00 PM
               </Text>
             </View>

@@ -3,11 +3,10 @@ import { MotiView } from 'moti';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
 import { ModernCard } from '../../src/components/ModernCard';
-import { supabase } from '../../src/lib/supabase';
+import { getShopsByLocation } from '../../src/lib/supabaseUtils';
 import { useAuthStore } from '../../src/store/authStore';
 import { Shop } from '../../src/types/supabase';
 import { getCurrentUserLocation, requestLocationPermissions } from '../../src/utils/location';
-import { filterAndSortShopsByDistance } from '../../src/utils/mapHelpers';
 
 const SLIDER_DATA = [
   {
@@ -65,42 +64,45 @@ export default function CustomerHomeScreen() {
         if (location) {
           setUserLocation(location);
           setLocationStatus('Location found');
+          
+          // Fetch nearby shops using the utility function
+          const result = await getShopsByLocation(
+            location.latitude,
+            location.longitude,
+            20 // 20km radius
+          );
+          
+          if (result.error) {
+            console.error('Error fetching nearby shops:', result.error);
+            setLocationStatus('Error loading nearby shops');
+            return;
+          }
+
+          const nearbyShops = result.data || [];
+          setShops(nearbyShops.map((shop: any) => ({ ...shop, distanceKm: shop.distance_km })));
+          setLocationStatus(`Found ${nearbyShops.length} shops within 20km`);
         } else {
           setLocationStatus('Could not get location');
+          // Fetch all shops if location not available
+          const result = await getShopsByLocation(0, 0, 1000); // Large radius to get all
+          if (result.data) {
+            setShops(result.data);
+          }
+          setLocationStatus('Showing all shops');
         }
       } else {
         setLocationStatus('Location permission denied');
-      }
-
-      // Fetch all shops
-      const { data: shopsData, error } = await supabase
-        .from('shops')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching shops:', error);
-        Alert.alert('Error', 'Failed to load shops');
-        return;
-      }
-
-      if (shopsData && userLocation) {
-        // Filter shops within 20km radius
-        const nearbyShops = filterAndSortShopsByDistance(
-          shopsData,
-          userLocation.latitude,
-          userLocation.longitude,
-          20 // 20km radius
-        );
-        setShops(nearbyShops);
-        setLocationStatus(`Found ${nearbyShops.length} shops within 20km`);
-      } else {
-        setShops(shopsData || []);
+        // Fetch all shops if location not available
+        const result = await getShopsByLocation(0, 0, 1000); // Large radius to get all
+        if (result.data) {
+          setShops(result.data);
+        }
         setLocationStatus('Showing all shops');
       }
     } catch (error) {
       console.error('Error in fetchLocationAndShops:', error);
       setLocationStatus('Error loading data');
+      Alert.alert('Error', 'Failed to load shops');
     } finally {
       setLoading(false);
     }
@@ -157,10 +159,10 @@ export default function CustomerHomeScreen() {
               </Text>
               
               <View className="flex-row items-center justify-between mt-2">
-                {item.average_rating && (
+                {item.rating && (
                   <View className="flex-row items-center">
                     <Text className="text-brand-primary text-sm font-semibold">
-                      ⭐ {item.average_rating.toFixed(1)}
+                      ⭐ {item.rating.toFixed(1)}
                     </Text>
                   </View>
                 )}
@@ -190,7 +192,7 @@ export default function CustomerHomeScreen() {
           animate={{ opacity: 1, translateY: 0 }}
         >
           <Text className="text-primary-light text-4xl font-extrabold">
-            Welcome{user?.first_name ? `, ${user.first_name}` : ''}!
+            Welcome{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}!
           </Text>
           <Text className="text-secondary-light text-lg mt-1">
             Find the perfect barber near you

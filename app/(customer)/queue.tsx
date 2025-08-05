@@ -1,14 +1,13 @@
-import { useState, useEffect } from "react";
-import { View, Text, FlatList, ActivityIndicator } from "react-native";
-import { MotiView, AnimatePresence } from "moti";
-import { collection, query, where, getDocs, getDoc, doc, QuerySnapshot, DocumentData } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAuthStore } from "@/store/authStore";
-import { QueueEntry, UserProfile, Booking, Service } from "@/types/firebaseModels";
-import { subscribeToQueueUpdates } from "@/lib/queueRealtime";
-import ModernCard from "@/components/ModernCard";
+import { AnimatePresence, MotiView } from "moti";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import { ModernCard } from "../../src/components/ModernCard";
+import { QueueRealtimeManager } from "../../src/lib/queueRealtime";
+import { supabase } from "../../src/lib/supabase";
+import { useAuthStore } from "../../src/store/authStore";
+import { QueueItem } from "../../src/types/supabase";
 
-interface QueueItemDisplay extends QueueEntry {
+interface QueueItemDisplay extends QueueItem {
   customerName: string;
   services: string[];
 }
@@ -20,6 +19,7 @@ export default function QueueScreen() {
   const [myQueuePosition, setMyQueuePosition] = useState<number | null>(null);
   const [queueAhead, setQueueAhead] = useState<number>(0);
   const [myShopId, setMyShopId] = useState<string | null>(null);
+  const [queueManager] = useState(() => new QueueRealtimeManager());
 
   // Fetch the shop ID for the customer's most recent booking
   useEffect(() => {
@@ -27,17 +27,21 @@ export default function QueueScreen() {
       try {
         if (!user?.id) return;
         
-        const bookingsQuery = query(
-          collection(db, "bookings"),
-          where("customer_id", "==", user.id),
-          where("status", "in", ["pending", "confirmed"])
-        );
+        const { data: bookingsData, error } = await supabase
+          .from('bookings')
+          .select('shop_id')
+          .eq('customer_id', user.id)
+          .in('status', ['pending', 'confirmed'])
+          .order('created_at', { ascending: false })
+          .limit(1);
         
-        const bookingsSnapshot = await getDocs(bookingsQuery);
+        if (error) {
+          console.error('Error fetching shop ID:', error);
+          return;
+        }
         
-        if (!bookingsSnapshot.empty) {
-          const bookingData = bookingsSnapshot.docs[0].data();
-          setMyShopId(bookingData.shop_id);
+        if (bookingsData && bookingsData.length > 0) {
+          setMyShopId(bookingsData[0].shop_id);
         }
       } catch (error) {
         console.error("Error fetching shop ID:", error);
@@ -54,49 +58,55 @@ export default function QueueScreen() {
       return;
     }
 
-    const fetchAndProcessQueue = async (snapshot: QuerySnapshot<DocumentData>) => {
+    const processQueueUpdate = async (queueData: any[]) => {
       try {
         const queueEntries: QueueItemDisplay[] = [];
         let myPosition = null;
         
         // Process each queue entry
-        for (const doc of snapshot.docs) {
-          const queueData = { id: doc.id, ...doc.data() } as QueueEntry;
-          
+        for (const queueItem of queueData) {
           // Check if this is the current user's queue entry
-          if (queueData.customer_id === user?.id) {
-            myPosition = queueData.position;
+          if (queueItem.customer_id === user?.id) {
+            myPosition = queueItem.position;
           }
           
           // Fetch customer details
-          const customerDoc = await getDoc(doc(db, "users", queueData.customer_id));
-          let customerName = "Unknown";
+          const { data: customerData } = await supabase
+            .from('users')
+            .select('full_name')
+            .eq('id', queueItem.customer_id)
+            .single();
           
-          if (customerDoc.exists()) {
-            const customerData = customerDoc.data() as UserProfile;
-            customerName = `${customerData.first_name} ${customerData.last_name.charAt(0)}.`;
+          let customerName = "Unknown";
+          if (customerData) {
+            const names = customerData.full_name.split(' ');
+            customerName = names.length > 1 
+              ? `${names[0]} ${names[names.length - 1].charAt(0)}.`
+              : customerData.full_name;
           }
           
           // Fetch booking and service details
-          const bookingDoc = await getDoc(doc(db, "bookings", queueData.booking_id));
-          let services: string[] = [];
+          const { data: bookingData } = await supabase
+            .from('bookings')
+            .select('service_id')
+            .eq('id', queueItem.booking_id)
+            .single();
           
-          if (bookingDoc.exists()) {
-            const bookingData = bookingDoc.data() as Booking;
+          let services: string[] = [];
+          if (bookingData) {
+            const { data: serviceData } = await supabase
+              .from('services')
+              .select('name')
+              .eq('id', bookingData.service_id)
+              .single();
             
-            // Fetch service names
-            const servicePromises = bookingData.service_ids.map(serviceId => 
-              getDoc(doc(db, "services", serviceId))
-            );
-            
-            const serviceSnapshots = await Promise.all(servicePromises);
-            services = serviceSnapshots
-              .filter(doc => doc.exists())
-              .map(doc => (doc.data() as Service).name);
+            if (serviceData) {
+              services = [serviceData.name];
+            }
           }
           
           queueEntries.push({
-            ...queueData,
+            ...queueItem,
             customerName,
             services,
           });
@@ -123,25 +133,25 @@ export default function QueueScreen() {
     };
 
     // Subscribe to real-time updates
-    const unsubscribe = subscribeToQueueUpdates(myShopId, fetchAndProcessQueue);
+    queueManager.subscribeToCustomerQueue(user?.id || '', processQueueUpdate);
     
     // Clean up subscription on unmount
-    return () => unsubscribe();
+    return () => queueManager.unsubscribeAll();
   }, [myShopId, user?.id]);
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+      <View className="flex-1 justify-center items-center bg-dark-background">
+        <ActivityIndicator size="large" color="#CB9C5E" />
       </View>
     );
   }
 
   if (!myShopId) {
     return (
-      <View style={{ flex: 1, padding: 16, justifyContent: "center", alignItems: "center" }}>
+      <View className="flex-1 p-4 justify-center items-center bg-dark-background">
         <ModernCard>
-          <Text style={{ fontSize: 18, color: "#F3F4F6", textAlign: "center" }}>
+          <Text className="text-lg text-primary-light text-center">
             You don't have any active bookings.
           </Text>
         </ModernCard>
@@ -151,9 +161,9 @@ export default function QueueScreen() {
 
   if (myQueuePosition === null) {
     return (
-      <View style={{ flex: 1, padding: 16, justifyContent: "center", alignItems: "center" }}>
+      <View className="flex-1 p-4 justify-center items-center bg-dark-background">
         <ModernCard>
-          <Text style={{ fontSize: 18, color: "#F3F4F6", textAlign: "center" }}>
+          <Text className="text-lg text-primary-light text-center">
             You are not currently in the queue.
           </Text>
         </ModernCard>
@@ -162,69 +172,31 @@ export default function QueueScreen() {
   }
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View className="flex-1 p-4 bg-dark-background">
       <MotiView
         from={{ opacity: 0, translateY: -10 }}
         animate={{ opacity: 1, translateY: 0 }}
-        
       >
-        <Text
-          style={{
-            fontSize: 32,
-            fontWeight: "bold",
-            color: "#F3F4F6", // text-primary-light
-            marginBottom: 24,
-          }}
-        >
+        <Text className="text-4xl font-bold text-primary-light mb-6">
           Your Live Queue
         </Text>
       </MotiView>
 
-      <ModernCard>
-        <Text
-          style={{
-            fontSize: 18,
-            fontWeight: "bold",
-            color: "#F3F4F6", // text-primary-light
-            textAlign: "center",
-            marginBottom: 8,
-          }}
-        >
+      <ModernCard className="mb-6">
+        <Text className="text-lg font-bold text-primary-light text-center mb-2">
           Your position in the queue
         </Text>
-        <Text
-          style={{
-            fontSize: 64,
-            fontWeight: "bold",
-            color: "#38BDF8", // text-accent-secondary
-            textAlign: "center",
-          }}
-        >
+        <Text className="text-6xl font-bold text-accent-secondary text-center">
           {myQueuePosition}
         </Text>
-        <Text
-          style={{
-            fontSize: 16,
-            color: "#A1A1AA", // text-secondary-light
-            textAlign: "center",
-            marginTop: 8,
-          }}
-        >
+        <Text className="text-base text-secondary-light text-center mt-2">
           {queueAhead === 0 
             ? "You're next!" 
             : `${queueAhead} ${queueAhead === 1 ? "person" : "people"} ahead of you`}
         </Text>
       </ModernCard>
 
-      <Text
-        style={{
-          fontSize: 20,
-          fontWeight: "bold",
-          color: "#F3F4F6", // text-primary-light
-          marginTop: 24,
-          marginBottom: 16,
-        }}
-      >
+      <Text className="text-xl font-bold text-primary-light mt-6 mb-4">
         People in Queue
       </Text>
 
@@ -237,77 +209,45 @@ export default function QueueScreen() {
               from={{ opacity: 0, translateX: -20 }}
               animate={{ opacity: 1, translateX: 0 }}
               exit={{ opacity: 0, translateX: -100 }}
-              transition={{ type: "timing", duration: 500, delay: index * 100 }}
-              style={{ marginBottom: 12 }}
+              transition={{ 
+                timing: { 
+                  duration: 500,
+                },
+                delay: index * 100 
+              }}
+              className="mb-3"
             >
               <ModernCard>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: item.customer_id === user?.id ? "#8B5CF6" : "#52525B",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginRight: 12,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 18,
-                        fontWeight: "bold",
-                        color: "#F3F4F6", // text-primary-light
-                      }}
-                    >
+                <View className="flex-row items-center">
+                  <View className={`w-10 h-10 rounded-full justify-center items-center mr-3 ${
+                    item.customer_id === user?.id ? 'bg-brand-secondary' : 'bg-gray-600'
+                  }`}>
+                    <Text className="text-lg font-bold text-primary-light">
                       {item.position}
                     </Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "bold",
-                        color: "#F3F4F6", // text-primary-light
-                        marginBottom: 4,
-                      }}
-                    >
+                  <View className="flex-1">
+                    <Text className="text-base font-bold text-primary-light mb-1">
                       {item.customer_id === user?.id ? "You" : item.customerName}
                     </Text>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: "#A1A1AA", // text-secondary-light
-                      }}
-                    >
+                    <Text className="text-sm text-secondary-light">
                       {item.services.join(", ")}
                     </Text>
                   </View>
-                  <View
-                    style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 4,
-                      backgroundColor: 
-                        item.status === "waiting" 
-                          ? "rgba(59, 130, 246, 0.2)" // bg-status-confirmed with opacity
-                          : item.status === "completed"
-                            ? "rgba(16, 185, 129, 0.2)" // bg-status-completed with opacity
-                            : "rgba(239, 68, 68, 0.2)", // bg-status-cancelled with opacity
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "bold",
-                        color: 
-                          item.status === "waiting" 
-                            ? "#3B82F6" // text-status-confirmed
-                            : item.status === "completed"
-                              ? "#10B981" // text-status-completed
-                              : "#EF4444", // text-status-cancelled
-                      }}
-                    >
+                  <View className={`px-2 py-1 rounded ${
+                    item.status === "waiting" 
+                      ? "bg-blue-500/20" 
+                      : item.status === "completed"
+                        ? "bg-green-500/20"
+                        : "bg-red-500/20"
+                  }`}>
+                    <Text className={`text-xs font-bold ${
+                      item.status === "waiting" 
+                        ? "text-blue-400" 
+                        : item.status === "completed"
+                          ? "text-green-400"
+                          : "text-red-400"
+                    }`}>
                       {item.status.toUpperCase()}
                     </Text>
                   </View>
@@ -318,13 +258,7 @@ export default function QueueScreen() {
         )}
         ListEmptyComponent={
           <ModernCard>
-            <Text
-              style={{
-                fontSize: 16,
-                color: "#F3F4F6", // text-primary-light
-                textAlign: "center",
-              }}
-            >
+            <Text className="text-base text-primary-light text-center">
               No one is currently in the queue.
             </Text>
           </ModernCard>

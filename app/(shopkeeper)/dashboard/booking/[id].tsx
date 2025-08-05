@@ -1,51 +1,88 @@
-import { useState, useEffect } from "react";
-import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator } from "react-native";
+import { supabase } from "@/src/lib/supabase";
+import { useAuthStore } from "@/src/store/authStore";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MotiView } from "moti";
-import { doc, getDoc, updateDoc, writeBatch, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { Booking, UserProfile, Service } from "@/types/firebaseModels";
-import ModernCard from "@/components/ModernCard";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
+
+interface BookingDetail {
+  id: string;
+  customer_id: string;
+  service_id: string;
+  booking_date: string;
+  booking_time: string;
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+  total_price: number;
+  notes?: string;
+  customer_name: string;
+  customer_phone?: string;
+  service_name: string;
+  service_duration: number;
+  created_at: string;
+}
 
 export default function BookingDetailScreen() {
-  const { id } = useLocalSearchParams();
   const router = useRouter();
-  const [booking, setBooking] = useState<Booking | null>(null);
-  const [customer, setCustomer] = useState<UserProfile | null>(null);
-  const [services, setServices] = useState<Service[]>([]);
+  const { id } = useLocalSearchParams();
+  const { user } = useAuthStore();
+  const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     const fetchBookingDetails = async () => {
       try {
-        // Fetch booking details
-        const bookingDoc = await getDoc(doc(db, "bookings", id as string));
-        
-        if (bookingDoc.exists()) {
-          const bookingData = { id: bookingDoc.id, ...bookingDoc.data() } as Booking;
-          setBooking(bookingData);
-          
-          // Fetch customer details
-          const customerDoc = await getDoc(doc(db, "users", bookingData.customer_id));
-          if (customerDoc.exists()) {
-            setCustomer({ id: customerDoc.id, ...customerDoc.data() } as UserProfile);
-          }
-          
-          // Fetch service details
-          const servicePromises = bookingData.service_ids.map(serviceId => 
-            getDoc(doc(db, "services", serviceId))
-          );
-          
-          const serviceSnapshots = await Promise.all(servicePromises);
-          const servicesData = serviceSnapshots
-            .filter(doc => doc.exists())
-            .map(doc => ({ id: doc.id, ...doc.data() } as Service));
-          
-          setServices(servicesData);
+        if (!id || !user?.id) {
+          setLoading(false);
+          return;
+        }
+
+        // Fetch booking with customer and service details
+        const { data: bookingData, error } = await supabase
+          .from('bookings')
+          .select(`
+            *,
+            users:customer_id(full_name, phone),
+            services:service_id(name, duration),
+            shops:shop_id(owner_id)
+          `)
+          .eq('id', id)
+          .single();
+
+        if (error) {
+          console.error('Error fetching booking:', error);
+          Alert.alert('Error', 'Failed to load booking details');
+          router.back();
+          return;
+        }
+
+        // Check if user owns the shop
+        if (bookingData.shops?.owner_id !== user.id) {
+          Alert.alert('Error', 'You do not have permission to view this booking');
+          router.back();
+          return;
+        }
+
+        if (bookingData) {
+          setBooking({
+            id: bookingData.id,
+            customer_id: bookingData.customer_id,
+            service_id: bookingData.service_id,
+            booking_date: bookingData.booking_date,
+            booking_time: bookingData.booking_time,
+            status: bookingData.status,
+            total_price: bookingData.total_price,
+            notes: bookingData.notes,
+            customer_name: bookingData.users?.full_name || 'Unknown Customer',
+            customer_phone: bookingData.users?.phone,
+            service_name: bookingData.services?.name || 'Unknown Service',
+            service_duration: bookingData.services?.duration || 0,
+            created_at: bookingData.created_at,
+          });
         }
       } catch (error) {
-        console.error("Error fetching booking details:", error);
+        console.error('Error in fetchBookingDetails:', error);
+        Alert.alert('Error', 'Failed to load booking details');
       } finally {
         setLoading(false);
       }
