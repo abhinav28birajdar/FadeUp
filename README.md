@@ -1,7 +1,7 @@
 # 🔺 FadeUp - Premium Barber Shop Booking Platform
 
 <div align="center">
-  <img src="https://via.placeholder.com/120x120/CB9C5E/F3F4F6?text=FU" alt="FadeUp Logo" width="120" height="120">
+  <img src="./assets/images/icon.png" alt="FadeUp Logo" width="120" height="120">
   
   **Book your perfect cut with FadeUp - The ultimate barbering experience platform**
   

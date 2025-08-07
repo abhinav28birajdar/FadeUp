@@ -1,393 +1,56 @@
-export interface Database {
-  public: {
-    Tables: {
-      users: {
-        Row: {
-          id: string;
-          email: string;
-          full_name: string;
-          role: 'customer' | 'shopkeeper';
-          phone?: string;
-          avatar_url?: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id: string;
-          email: string;
-          full_name: string;
-          role?: 'customer' | 'shopkeeper';
-          phone?: string;
-          avatar_url?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          email?: string;
-          full_name?: string;
-          role?: 'customer' | 'shopkeeper';
-          phone?: string;
-          avatar_url?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
-      shops: {
-        Row: {
-          id: string;
-          owner_id: string;
-          name: string;
-          description?: string;
-          address: string;
-          latitude?: number;
-          longitude?: number;
-          phone?: string;
-          email?: string;
-          opening_hours?: any;
-          images?: string[];
-          rating: number;
-          total_ratings: number;
-          is_active: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          owner_id: string;
-          name: string;
-          description?: string;
-          address: string;
-          latitude?: number;
-          longitude?: number;
-          phone?: string;
-          email?: string;
-          opening_hours?: any;
-          images?: string[];
-          rating?: number;
-          total_ratings?: number;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          owner_id?: string;
-          name?: string;
-          description?: string;
-          address?: string;
-          latitude?: number;
-          longitude?: number;
-          phone?: string;
-          email?: string;
-          opening_hours?: any;
-          images?: string[];
-          rating?: number;
-          total_ratings?: number;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
-      services: {
-        Row: {
-          id: string;
-          shop_id: string;
-          name: string;
-          description?: string;
-          duration: number;
-          price: number;
-          is_active: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          shop_id: string;
-          name: string;
-          description?: string;
-          duration: number;
-          price: number;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          shop_id?: string;
-          name?: string;
-          description?: string;
-          duration?: number;
-          price?: number;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
-      bookings: {
-        Row: {
-          id: string;
-          customer_id: string;
-          shop_id: string;
-          service_id: string;
-          booking_date: string;
-          booking_time: string;
-          status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
-          total_price: number;
-          notes?: string;
-          estimated_duration?: number;
-          actual_start_time?: string;
-          actual_end_time?: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          customer_id: string;
-          shop_id: string;
-          service_id: string;
-          booking_date: string;
-          booking_time: string;
-          status?: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
-          total_price: number;
-          notes?: string;
-          estimated_duration?: number;
-          actual_start_time?: string;
-          actual_end_time?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          customer_id?: string;
-          shop_id?: string;
-          service_id?: string;
-          booking_date?: string;
-          booking_time?: string;
-          status?: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
-          total_price?: number;
-          notes?: string;
-          estimated_duration?: number;
-          actual_start_time?: string;
-          actual_end_time?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-      };
-      queue: {
-        Row: {
-          id: string;
-          shop_id: string;
-          customer_id: string;
-          booking_id: string;
-          position: number;
-          status: 'waiting' | 'in_service' | 'completed' | 'cancelled';
-          estimated_wait_time?: number;
-          joined_at: string;
-          started_at?: string;
-          completed_at?: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          shop_id: string;
-          customer_id: string;
-          booking_id: string;
-          position: number;
-          status?: 'waiting' | 'in_service' | 'completed' | 'cancelled';
-          estimated_wait_time?: number;
-          joined_at?: string;
-          started_at?: string;
-          completed_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          shop_id?: string;
-          customer_id?: string;
-          booking_id?: string;
-          position?: number;
-          status?: 'waiting' | 'in_service' | 'completed' | 'cancelled';
-          estimated_wait_time?: number;
-          joined_at?: string;
-          started_at?: string;
-          completed_at?: string;
-          updated_at?: string;
-        };
-      };
-      reviews: {
-        Row: {
-          id: string;
-          booking_id: string;
-          customer_id: string;
-          shop_id: string;
-          rating: number;
-          comment?: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          booking_id: string;
-          customer_id: string;
-          shop_id: string;
-          rating: number;
-          comment?: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          booking_id?: string;
-          customer_id?: string;
-          shop_id?: string;
-          rating?: number;
-          comment?: string;
-          created_at?: string;
-        };
-      };
-      notifications: {
-        Row: {
-          id: string;
-          user_id: string;
-          title: string;
-          message: string;
-          type: string;
-          is_read: boolean;
-          data?: any;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          title: string;
-          message: string;
-          type: string;
-          is_read?: boolean;
-          data?: any;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          user_id?: string;
-          title?: string;
-          message?: string;
-          type?: string;
-          is_read?: boolean;
-          data?: any;
-          created_at?: string;
-        };
-      };
-      shop_availability: {
-        Row: {
-          id: string;
-          shop_id: string;
-          date: string;
-          start_time: string;
-          end_time: string;
-          is_available: boolean;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          shop_id: string;
-          date: string;
-          start_time: string;
-          end_time: string;
-          is_available?: boolean;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          shop_id?: string;
-          date?: string;
-          start_time?: string;
-          end_time?: string;
-          is_available?: boolean;
-          created_at?: string;
-        };
-      };
-    };
-    Views: {
-      [_ in never]: never;
-    };
-    Functions: {
-      get_nearby_shops: {
-        Args: {
-          user_lat: number;
-          user_lng: number;
-          radius_km?: number;
-        };
-        Returns: {
-          id: string;
-          name: string;
-          description?: string;
-          address: string;
-          latitude?: number;
-          longitude?: number;
-          phone?: string;
-          rating: number;
-          total_ratings: number;
-          distance_km: number;
-        }[];
-      };
-      calculate_estimated_wait_time: {
-        Args: {
-          shop_id_param: string;
-          position_param: number;
-        };
-        Returns: number;
-      };
-      send_notification: {
-        Args: {
-          user_id_param: string;
-          title_param: string;
-          message_param: string;
-          type_param: string;
-          data_param?: any;
-        };
-        Returns: string;
-      };
-    };
-    Enums: {
-      user_role: 'customer' | 'shopkeeper';
-      booking_status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
-      queue_status: 'waiting' | 'in_service' | 'completed' | 'cancelled';
-    };
-    CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
+export interface UserProfile {
+  id: string;
+  created_at: string;
+  email: string;
+  role: 'customer' | 'shopkeeper';
+  first_name: string;
+  last_name: string;
+  phone_number?: string;
+  shop_id?: string;
+  avatar_url?: string;
+  expo_push_token?: string;
 }
 
-// Type helpers
-export type User = Database['public']['Tables']['users']['Row'];
-export type Shop = Database['public']['Tables']['shops']['Row'];
-export type Service = Database['public']['Tables']['services']['Row'];
-export type Booking = Database['public']['Tables']['bookings']['Row'];
-export type QueueItem = Database['public']['Tables']['queue']['Row'];
-export type Review = Database['public']['Tables']['reviews']['Row'];
-export type Notification = Database['public']['Tables']['notifications']['Row'];
-export type ShopAvailability = Database['public']['Tables']['shop_availability']['Row'];
+export interface Shop {
+  id: string;
+  created_at: string;
+  name: string;
+  address: string;
+  description?: string;
+  owner_id: string;
+  latitude: number;
+  longitude: number;
+  phone_number?: string;
+  social_instagram?: string;
+  social_facebook?: string;
+  website_url?: string;
+  image_url?: string;
+  average_rating?: number;
+  opening_hours_json?: Record<string, string>;
+}
 
-export type UserInsert = Database['public']['Tables']['users']['Insert'];
-export type ShopInsert = Database['public']['Tables']['shops']['Insert'];
-export type ServiceInsert = Database['public']['Tables']['services']['Insert'];
-export type BookingInsert = Database['public']['Tables']['bookings']['Insert'];
-export type QueueItemInsert = Database['public']['Tables']['queue']['Insert'];
-export type ReviewInsert = Database['public']['Tables']['reviews']['Insert'];
-export type NotificationInsert = Database['public']['Tables']['notifications']['Insert'];
-export type ShopAvailabilityInsert = Database['public']['Tables']['shop_availability']['Insert'];
+export interface Service {
+  id: string;
+  created_at: string;
+  shop_id: string;
+  name: string;
+  price: number;
+  duration: number;
+  description?: string;
+}
 
-export type UserUpdate = Database['public']['Tables']['users']['Update'];
-export type ShopUpdate = Database['public']['Tables']['shops']['Update'];
-export type ServiceUpdate = Database['public']['Tables']['services']['Update'];
-export type BookingUpdate = Database['public']['Tables']['bookings']['Update'];
-export type QueueItemUpdate = Database['public']['Tables']['queue']['Update'];
-export type ReviewUpdate = Database['public']['Tables']['reviews']['Update'];
-export type NotificationUpdate = Database['public']['Tables']['notifications']['Update'];
-export type ShopAvailabilityUpdate = Database['public']['Tables']['shop_availability']['Update'];
-
-// Legacy type aliases for backward compatibility
-export interface UserProfile extends User {}
+export interface Booking {
+  id: string;
+  created_at: string;
+  customer_id: string;
+  shop_id: string;
+  service_ids: string[];
+  booking_date: string;
+  slot_time: string;
+  total_price: number;
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+  notes?: string;
+}
 
 export interface QueueEntry {
   id: string;
@@ -398,6 +61,7 @@ export interface QueueEntry {
   position: number;
   status: 'waiting' | 'in_progress' | 'ready_next' | 'completed' | 'skipped';
   estimated_completion_time?: string;
+  in_progress_start_time?: string;
 }
 
 export interface Feedback {
@@ -406,7 +70,46 @@ export interface Feedback {
   booking_id: string;
   customer_id: string;
   shop_id: string;
-  rating: number; // 1-5 stars
+  rating: number;
   comment?: string;
   submitted_at: string;
 }
+
+// Extended types for UI
+export interface ShopWithDistance extends Shop {
+  distanceKm?: number;
+}
+
+export interface QueueEntryWithDetails extends QueueEntry {
+  customer?: UserProfile;
+  booking?: Booking;
+  services?: Service[];
+  estimatedDurationMinutes?: number;
+}
+
+export interface BookingWithDetails extends Booking {
+  customer?: UserProfile;
+  shop?: Shop;
+  services?: Service[];
+  queue_entry?: QueueEntry;
+}
+
+export interface FeedbackWithDetails extends Feedback {
+  customer?: UserProfile;
+  shop?: Shop;
+}
+
+// Database insert/update types
+export interface UserProfileInsert extends Omit<UserProfile, 'id' | 'created_at'> {
+  id: string;
+}
+
+export interface ShopInsert extends Omit<Shop, 'id' | 'created_at'> {}
+
+export interface ServiceInsert extends Omit<Service, 'id' | 'created_at'> {}
+
+export interface BookingInsert extends Omit<Booking, 'id' | 'created_at'> {}
+
+export interface QueueEntryInsert extends Omit<QueueEntry, 'id' | 'created_at'> {}
+
+export interface FeedbackInsert extends Omit<Feedback, 'id' | 'created_at'> {}
