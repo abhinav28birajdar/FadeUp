@@ -159,10 +159,10 @@ export default function CustomerHomeScreen() {
               </Text>
               
               <View className="flex-row items-center justify-between mt-2">
-                {item.rating && (
+                {item.average_rating && item.average_rating > 0 && (
                   <View className="flex-row items-center">
                     <Text className="text-brand-primary text-sm font-semibold">
-                      ⭐ {item.rating.toFixed(1)}
+                      ⭐ {item.average_rating.toFixed(1)}
                     </Text>
                   </View>
                 )}
@@ -192,7 +192,7 @@ export default function CustomerHomeScreen() {
           animate={{ opacity: 1, translateY: 0 }}
         >
           <Text className="text-primary-light text-4xl font-extrabold">
-            Welcome{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}!
+            Welcome{user?.first_name ? `, ${user.first_name}` : ''}!
           </Text>
           <Text className="text-secondary-light text-lg mt-1">
             Find the perfect barber near you

@@ -3,18 +3,18 @@ import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    Text,
+    View
 } from 'react-native';
 import { ModernCard } from '../../src/components/ModernCard';
-import { supabase } from '../../src/lib/supabase';
 import { subscribeToQueueUpdates } from '../../src/lib/queueRealtime';
+import { supabase } from '../../src/lib/supabase';
 import { useAuthStore } from '../../src/store/authStore';
 import { Booking, QueueEntry, Service, Shop } from '../../src/types/supabase';
 
@@ -59,7 +59,7 @@ export default function ShopkeeperDashboardScreen() {
     queueLength: 0,
     averageWaitTime: 0,
   });
-  const [queue, setQueue] = useState<QueueEntry[]>([]);
+  const [queue, setQueue] = useState<QueueWithDetails[]>([]);
   const [todayBookings, setTodayBookings] = useState<BookingWithUser[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,7 +75,7 @@ export default function ShopkeeperDashboardScreen() {
     if (shop?.id) {
       // Subscribe to real-time queue updates
       const unsubscribe = subscribeToQueueUpdates(shop.id, (updatedQueue) => {
-        setQueue(updatedQueue);
+        setQueue(updatedQueue as QueueWithDetails[]);
         setStats(prev => ({
           ...prev,
           queueLength: updatedQueue.length,
@@ -83,7 +83,11 @@ export default function ShopkeeperDashboardScreen() {
         }));
       });
 
-      return unsubscribe;
+      return () => {
+        if (unsubscribe) {
+          unsubscribe.unsubscribe();
+        }
+      };
     }
   }, [shop?.id]);
 
@@ -249,7 +253,7 @@ export default function ShopkeeperDashboardScreen() {
     </MotiView>
   );
 
-  const renderQueueItem = ({ item, index }: { item: QueueEntry; index: number }) => (
+  const renderQueueItem = ({ item, index }: { item: QueueWithDetails; index: number }) => (
     <MotiView
       from={{ opacity: 0, translateX: -20 }}
       animate={{ opacity: 1, translateX: 0 }}
@@ -281,7 +285,7 @@ export default function ShopkeeperDashboardScreen() {
         </View>
         
         <Text className="text-secondary-light text-xs">
-          Waited: {Math.floor((new Date().getTime() - new Date(item.joined_at).getTime()) / 60000)} minutes
+          Waited: {Math.floor((new Date().getTime() - new Date(item.created_at).getTime()) / 60000)} minutes
         </Text>
       </ModernCard>
     </MotiView>
