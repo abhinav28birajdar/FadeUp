@@ -53,98 +53,7 @@ FadeUp leverages a modern, scalable tech stack:
 - iOS Simulator (macOS) or Android Studio/Device
 - Supabase account for backend services
 
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/fadeup.git
-   cd fadeup
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   # or
-   yarn install
-   ```
-
-3. **Environment Setup**
-   
-   Create a `.env` file in the project root:
-   ```env
-   EXPO_PUBLIC_SUPABASE_URL=your_supabase_project_url
-   EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
-
-4. **Database Setup**
-   
-   Execute the provided SQL schema in your Supabase project:
-   ```bash
-   # Copy contents of supabase_schema.sql to Supabase SQL Editor and run
-   ```
-
-5. **Enable Realtime**
-   
-   In Supabase Dashboard → Database → Realtime:
-   - Enable realtime for `public.queue` table
-
-6. **Start Development**
-   ```bash
-   npx expo start --clear
-   ```
-
-## 📱 Screenshots
-
-*Coming soon - Showcase of the beautiful dark-themed UI with brand-aligned gold accents*
-
-## 🔧 Configuration
-
-### Supabase Setup
-
-1. Create a new Supabase project
-2. Copy your project URL and anon key to `.env`
-3. Run the SQL schema from `supabase_schema.sql`
-4. Enable email authentication in Auth settings
-5. Enable realtime for the queue table
-
-### Color Palette
-
-FadeUp features a carefully crafted dark theme with brand-inspired accents:
-
-```javascript
-// Brand Colors
-'brand-primary': '#CB9C5E',    // Gold - Primary CTAs
-'brand-secondary': '#827092',   // Purple-Brown - Secondary elements
-
-// Dark Theme
-'dark-background': '#121212',   // Primary background
-'dark-card': '#27272A',        // Card backgrounds
-'dark-border': '#52525B',      // Subtle borders
-
-// Status Colors  
-'status-completed': '#10B981',  // Success/completed
-'status-pending': '#F97316',    // Warning/pending
-'status-in-progress': '#8884d8' // In progress
-```
-
-## 🗂️ Project Structure
-
-```
-fadeup/
-├── app/                        # Expo Router screens
-│   ├── (auth)/                # Authentication flow
-│   ├── (customer)/            # Customer-specific screens  
-│   ├── (shopkeeper)/          # Shopkeeper-specific screens
-│   └── _layout.tsx            # Root layout with auth management
-├── src/
-│   ├── components/            # Reusable UI components
-│   ├── lib/                   # Core utilities (Supabase, realtime)
-│   ├── store/                 # Zustand state management
-│   ├── types/                 # TypeScript type definitions
-│   └── utils/                 # Helper functions (location, maps, queue)
-├── assets/                    # Static assets
-└── supabase_schema.sql        # Database schema
-```
+---
 
 ## 🔒 Security & Privacy
 
@@ -157,9 +66,6 @@ fadeup/
 
 We welcome contributions to FadeUp! Please see our contributing guidelines for more information.
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
@@ -172,6 +78,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
   <strong>Built with ❤️ for the barbering community</strong>
-  
-  [Website](https://fadeup.app) • [Documentation](https://docs.fadeup.app) • [Support](mailto:support@fadeup.app)
+
 </div>
