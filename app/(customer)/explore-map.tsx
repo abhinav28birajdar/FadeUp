@@ -160,10 +160,10 @@ export default function ExploreMapScreen() {
 
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center space-x-4">
-                    {selectedShop.rating && selectedShop.rating > 0 && (
+                    {selectedShop.average_rating && selectedShop.average_rating > 0 && (
                       <View className="flex-row items-center">
                         <Text className="text-brand-primary font-semibold">
-                          ⭐ {selectedShop.rating.toFixed(1)}
+                          ⭐ {selectedShop.average_rating.toFixed(1)}
                         </Text>
                       </View>
                     )}

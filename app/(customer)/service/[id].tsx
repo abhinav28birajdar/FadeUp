@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MotiView } from "moti";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { Service } from "@/types/firebaseModels";
-import ModernCard from "@/components/ModernCard";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ModernCard } from "../../../src/components/ModernCard";
+import { supabase } from "../../../src/lib/supabase";
+import { Service } from "../../../src/types/supabase";
 
 export default function ServiceDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -16,10 +15,16 @@ export default function ServiceDetailScreen() {
   useEffect(() => {
     const fetchService = async () => {
       try {
-        const serviceDoc = await getDoc(doc(db, "services", id as string));
+        const { data: serviceData, error } = await supabase
+          .from('services')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (error) throw error;
         
-        if (serviceDoc.exists()) {
-          setService({ id: serviceDoc.id, ...serviceDoc.data() } as Service);
+        if (serviceData) {
+          setService(serviceData);
         }
       } catch (error) {
         console.error("Error fetching service details:", error);
@@ -59,7 +64,7 @@ export default function ServiceDetailScreen() {
         <MotiView
           from={{ opacity: 0, translateY: -10 }}
           animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: "timing", duration: 500 }}
+          transition={{ delay: 0 }}
         >
           <Text
             style={{
@@ -77,7 +82,7 @@ export default function ServiceDetailScreen() {
         <MotiView
           from={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ type: "timing", duration: 500, delay: 200 }}
+          transition={{ delay: 200 }}
         >
           <Text
             style={{
@@ -95,7 +100,7 @@ export default function ServiceDetailScreen() {
         <MotiView
           from={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ type: "timing", duration: 500, delay: 400 }}
+          transition={{ delay: 400 }}
         >
           <Text
             style={{
@@ -113,7 +118,7 @@ export default function ServiceDetailScreen() {
           <MotiView
             from={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ type: "timing", duration: 500, delay: 600 }}
+            transition={{ delay: 600 }}
             style={{ marginBottom: 32 }}
           >
             <Text
@@ -139,7 +144,7 @@ export default function ServiceDetailScreen() {
               animate={{ 
                 scale: pressed ? 0.96 : 1,
               }}
-              transition={{ type: "timing", duration: 150 }}
+              transition={{ delay: 0 }}
               style={{
                 backgroundColor: "#8B5CF6", // bg-accent-primary
                 paddingVertical: 20,
@@ -156,12 +161,7 @@ export default function ServiceDetailScreen() {
               <MotiView
                 from={{ scale: 1 }}
                 animate={{ scale: [1, 1.05, 1] }}
-                transition={{
-                  type: "spring",
-                  duration: 1500,
-                  loop: true,
-                  delay: 1000,
-                }}
+                transition={{ delay: 1000 }}
               >
                 <Text
                   style={{
@@ -170,7 +170,7 @@ export default function ServiceDetailScreen() {
                     color: "#F3F4F6", // text-primary-light
                   }}
                 >
-                  Book Now
+                  Book This Service
                 </Text>
               </MotiView>
             </MotiView>

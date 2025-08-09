@@ -1,11 +1,19 @@
-import { useState, useEffect } from "react";
-import { View, Text, ScrollView, ActivityIndicator } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { MotiView } from "moti";
-import { doc, getDoc, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { Feedback, UserProfile } from "@/types/firebaseModels";
-import ModernCard from "@/components/ModernCard";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ModernCard } from "../../../src/components/ModernCard";
+import { supabase } from "../../../src/lib/supabase";
+import { UserProfile } from "../../../src/types/supabase";
+
+interface Feedback {
+  id: string;
+  booking_id: string;
+  customer_id: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+}
 
 export default function FeedbackDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -17,16 +25,26 @@ export default function FeedbackDetailScreen() {
     const fetchFeedbackDetails = async () => {
       try {
         // Fetch feedback details
-        const feedbackDoc = await getDoc(doc(db, "feedback", id as string));
+        const { data: feedbackData, error: feedbackError } = await supabase
+          .from('feedback')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (feedbackError) throw feedbackError;
         
-        if (feedbackDoc.exists()) {
-          const feedbackData = { id: feedbackDoc.id, ...feedbackDoc.data() } as Feedback;
+        if (feedbackData) {
           setFeedback(feedbackData);
           
           // Fetch customer details
-          const customerDoc = await getDoc(doc(db, "users", feedbackData.customer_id));
-          if (customerDoc.exists()) {
-            setCustomer({ id: customerDoc.id, ...customerDoc.data() } as UserProfile);
+          const { data: customerData } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', feedbackData.customer_id)
+            .single();
+
+          if (customerData) {
+            setCustomer(customerData);
           }
         }
       } catch (error) {
@@ -49,7 +67,7 @@ export default function FeedbackDetailScreen() {
           key={i}
           style={{
             fontSize: 24,
-            color: i <= rating ? "#38BDF8" : "#52525B", // text-accent-secondary : dark-border
+            color: i <= rating ? "#CB9C5E" : "#52525B", // brand-primary : dark-border
           }}
         >
           ★
@@ -63,8 +81,8 @@ export default function FeedbackDetailScreen() {
     );
   };
 
-  const formatDate = (timestamp: Timestamp) => {
-    const date = timestamp.toDate();
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
@@ -77,7 +95,7 @@ export default function FeedbackDetailScreen() {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color="#CB9C5E" />
       </View>
     );
   }
@@ -99,7 +117,7 @@ export default function FeedbackDetailScreen() {
       <MotiView
         from={{ opacity: 0, translateY: -10 }}
         animate={{ opacity: 1, translateY: 0 }}
-        transition={{ type: "timing", duration: 500 }}
+        transition={{ delay: 0 }}
       >
         <Text
           style={{
@@ -130,7 +148,7 @@ export default function FeedbackDetailScreen() {
         <MotiView
           from={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ type: "timing", duration: 800 }}
+          transition={{ delay: 800 }}
           style={{ marginBottom: 16 }}
         >
           {feedback.comment ? (
@@ -163,7 +181,7 @@ export default function FeedbackDetailScreen() {
             color: "#A1A1AA", // text-secondary-light
           }}
         >
-          Submitted on {formatDate(feedback.submitted_at)}
+          Submitted on {formatDate(feedback.created_at)}
         </Text>
       </ModernCard>
     </ScrollView>

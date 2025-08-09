@@ -1,9 +1,9 @@
-import React from "react";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { Link, Tabs } from "expo-router";
+import React from "react";
 import { Pressable } from "react-native";
 
-import Colors from "@/constants/colors";
+import Colors from "@/constants/Colors";
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>["name"];

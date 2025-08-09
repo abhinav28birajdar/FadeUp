@@ -120,8 +120,8 @@ const ShopDetailScreen = () => {
   };
 
   const handleCallShop = () => {
-    if (shop?.phone) {
-      Linking.openURL(`tel:${shop.phone}`);
+    if (shop?.phone_number) {
+      Linking.openURL(`tel:${shop.phone_number}`);
     }
   };
 
@@ -200,7 +200,7 @@ const ShopDetailScreen = () => {
       <View className="relative h-64">
         <Image
           source={{
-            uri: shop.images?.[0] || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800'
+            uri: shop.image_url || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800'
           }}
           className="w-full h-full"
           resizeMode="cover"
@@ -218,7 +218,7 @@ const ShopDetailScreen = () => {
         {/* Shop Rating */}
         <View className="absolute top-12 right-4 bg-black/50 px-3 py-1 rounded-full flex-row items-center">
           <Ionicons name="star" size={16} color="#CB9C5E" />
-          <Text className="text-primary-light font-semibold ml-1">{shop.rating?.toFixed(1) || 'N/A'}</Text>
+          <Text className="text-primary-light font-semibold ml-1">{shop.average_rating?.toFixed(1) || 'N/A'}</Text>
         </View>
       </View>
 

@@ -121,7 +121,7 @@ export default function BookingConfirmationScreen() {
                 <Text className="text-secondary-light mb-1">Shop: {shop.name}</Text>
                 <Text className="text-secondary-light mb-1">Service: {service.name}</Text>
                 <Text className="text-secondary-light mb-1">Date: {booking.booking_date}</Text>
-                <Text className="text-secondary-light mb-1">Time: {booking.booking_time}</Text>
+                <Text className="text-secondary-light mb-1">Time: {booking.slot_time}</Text>
                 <Text className="text-brand-primary font-semibold">Total: ${booking.total_price.toFixed(2)}</Text>
               </View>
             )}

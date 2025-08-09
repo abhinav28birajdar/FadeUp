@@ -5,9 +5,11 @@ import { ModernCard } from "../../src/components/ModernCard";
 import { QueueRealtimeManager } from "../../src/lib/queueRealtime";
 import { supabase } from "../../src/lib/supabase";
 import { useAuthStore } from "../../src/store/authStore";
-import { QueueItem } from "../../src/types/supabase";
 
-interface QueueItemDisplay extends QueueItem {
+import { QueueEntry } from "../../src/types/supabase";
+
+
+interface QueueItemDisplay extends QueueEntry {
   customerName: string;
   services: string[];
 }
@@ -69,42 +71,38 @@ export default function QueueScreen() {
           if (queueItem.customer_id === user?.id) {
             myPosition = queueItem.position;
           }
-          
+
           // Fetch customer details
           const { data: customerData } = await supabase
             .from('users')
-            .select('full_name')
+            .select('first_name, last_name')
             .eq('id', queueItem.customer_id)
             .single();
-          
+
           let customerName = "Unknown";
           if (customerData) {
-            const names = customerData.full_name.split(' ');
-            customerName = names.length > 1 
-              ? `${names[0]} ${names[names.length - 1].charAt(0)}.`
-              : customerData.full_name;
+            customerName = `${customerData.first_name} ${customerData.last_name.charAt(0)}.`;
           }
-          
+
           // Fetch booking and service details
           const { data: bookingData } = await supabase
             .from('bookings')
-            .select('service_id')
+            .select('service_ids')
             .eq('id', queueItem.booking_id)
             .single();
-          
+
           let services: string[] = [];
-          if (bookingData) {
-            const { data: serviceData } = await supabase
+          if (bookingData && Array.isArray(bookingData.service_ids)) {
+            // Fetch all service names for the booking
+            const { data: serviceList } = await supabase
               .from('services')
               .select('name')
-              .eq('id', bookingData.service_id)
-              .single();
-            
-            if (serviceData) {
-              services = [serviceData.name];
+              .in('id', bookingData.service_ids);
+            if (serviceList) {
+              services = serviceList.map((s: any) => s.name);
             }
           }
-          
+
           queueEntries.push({
             ...queueItem,
             customerName,
@@ -113,7 +111,7 @@ export default function QueueScreen() {
         }
         
         // Sort by position
-        queueEntries.sort((a, b) => a.position - b.position);
+  queueEntries.sort((a, b) => a.position - b.position);
         
         setShopQueue(queueEntries);
         setMyQueuePosition(myPosition);
