@@ -5,11 +5,11 @@
   
   **Book your perfect cut with FadeUp - The ultimate barbering experience platform**
   
-  [![React Native](https://img.shields.io/badge/React%20Native-0.72+-61DAFB?style=flat&logo=react)](https://reactnative.dev)
-  [![Expo](https://img.shields.io/badge/Expo%20SDK-49+-000020?style=flat&logo=expo)](https://expo.dev)
-  [![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat&logo=supabase&logoColor=white)](https://supabase.com)
-  [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://typescriptlang.org)
-  [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+  [![React Native](https://img.shields.io/badge/React%20Native-0.79.5-61DAFB?style=flat&logo=react)](https://reactnative.dev)
+  [![Expo](https://img.shields.io/badge/Expo%20SDK-53.0-000020?style=flat&logo=expo)](https://expo.dev)
+  [![Supabase](https://img.shields.io/badge/Supabase-2.40.0-3ECF8E?style=flat&logo=supabase&logoColor=white)](https://supabase.com)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-5.3.3-3178C6?style=flat&logo=typescript&logoColor=white)](https://typescriptlang.org)
+  [![NativeWind](https://img.shields.io/badge/NativeWind-4.0-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://nativewind.dev)
 </div>
 
 ## ✨ About FadeUp
@@ -49,9 +49,67 @@ FadeUp leverages a modern, scalable tech stack:
 ### Prerequisites
 
 - Node.js 18+ and npm/yarn
-- Expo CLI (`npm install -g @expo/cli`)
+- Expo CLI (`npm install -g expo-cli`)
 - iOS Simulator (macOS) or Android Studio/Device
 - Supabase account for backend services
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/abhinav28birajdar/FadeUp.git
+   cd FadeUp
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   - Create a `.env` file in the root directory
+   - Add your Supabase credentials:
+     ```
+     EXPO_PUBLIC_SUPABASE_URL=your_supabase_project_url
+     EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+     ```
+
+4. **Set up Supabase**
+   - Create a new Supabase project
+   - Run the SQL script from `supabase-schema.sql` in the SQL Editor
+   - Enable Realtime for the tables specified in the schema
+
+5. **Start the development server**
+   ```bash
+   npm start
+   ```
+
+6. **Launch on device or simulator**
+   - Press `i` to open in iOS Simulator
+   - Press `a` to open in Android Emulator
+   - Scan the QR code with Expo Go app on your physical device
+
+### Project Structure
+
+```
+fadeUp/
+├── app/                    # Expo Router screens
+│   ├── (auth)/             # Authentication screens
+│   ├── (customer)/         # Customer role screens
+│   ├── (shopkeeper)/       # Shopkeeper role screens
+│   └── (tabs)/             # Tab navigation screens
+├── assets/                 # Static assets (images, fonts)
+├── components/             # Reusable UI components
+├── constants/              # App constants and themes
+├── hooks/                  # Custom React hooks
+├── src/
+│   ├── components/         # Application-specific components
+│   ├── lib/                # Library code (Supabase, notifications)
+│   ├── store/              # Zustand state management
+│   ├── types/              # TypeScript type definitions
+│   └── utils/              # Utility functions
+└── supabase-schema.sql     # Database schema definition
+```
 
 ---
 

@@ -6,6 +6,7 @@ export default function ShopkeeperLayout() {
       <Stack.Screen name="dashboard" />
       <Stack.Screen name="dashboard/booking/[id]" />
       <Stack.Screen name="queue" />
+      <Stack.Screen name="queue_new" options={{ title: "Enhanced Queue" }} />
       <Stack.Screen name="feedback" />
       <Stack.Screen name="feedback/[id]" />
     </Stack>

@@ -221,7 +221,8 @@ export default function ShopkeeperDashboardScreen() {
   };
 
   const handleManageQueue = () => {
-    router.push('/(shopkeeper)/queue');
+    // Direct users to the enhanced queue screen
+    router.push('/(shopkeeper)/queue_new');
   };
 
   const handleViewFeedback = () => {

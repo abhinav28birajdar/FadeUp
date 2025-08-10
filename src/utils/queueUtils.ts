@@ -24,6 +24,47 @@ export async function getServicesDuration(serviceIds: string[]): Promise<number>
 }
 
 /**
+ * Calculate estimated wait time for a specific position in the queue
+ * This is a synchronous client-side calculation based on currently fetched queue data
+ * 
+ * @param position The current position in queue
+ * @param queueData Full queue data array for calculations
+ * @returns Estimated wait time in minutes
+ */
+export function calculateQueuePositionTime(position: number, queueData: any[]): number {
+  if (!queueData || queueData.length === 0) return 0;
+  
+  // Find all customers ahead in the waiting status
+  const customersAhead = queueData.filter(
+    item => item.status === 'waiting' && item.position < position
+  );
+  
+  if (customersAhead.length === 0) return 0;
+  
+  // Calculate total wait time by summing service durations
+  let totalWaitMinutes = 0;
+  
+  for (const customer of customersAhead) {
+    if (customer.services && Array.isArray(customer.services)) {
+      // Sum up the duration of all services for this customer
+      const customerServiceTime = customer.services.reduce(
+        (total: number, service: any) => total + (service.duration || 30), 
+        0
+      );
+      totalWaitMinutes += customerServiceTime;
+    } else {
+      // Default estimate if service info is missing
+      totalWaitMinutes += 25;
+    }
+  }
+  
+  // Add extra buffer time (5 mins per customer)
+  totalWaitMinutes += customersAhead.length * 5;
+  
+  return totalWaitMinutes;
+}
+
+/**
  * Calculate estimated wait time for a customer in the queue
  */
 export async function calculateEstimatedCustomerWaitTime(

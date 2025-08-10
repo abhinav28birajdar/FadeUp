@@ -26,6 +26,7 @@ export interface Shop {
   website_url?: string;
   image_url?: string;
   average_rating?: number;
+  total_ratings?: number;
   opening_hours_json?: Record<string, string>;
 }
 
@@ -44,12 +45,15 @@ export interface Booking {
   created_at: string;
   customer_id: string;
   shop_id: string;
+  service_id?: string; // Legacy support
   service_ids: string[];
   booking_date: string;
+  booking_time?: string; // Alias for slot_time in some parts of the app
   slot_time: string;
   total_price: number;
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
   notes?: string;
+  customer_note?: string; // Additional customer notes
 }
 
 export interface QueueEntry {

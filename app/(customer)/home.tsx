@@ -1,8 +1,12 @@
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { ModernCard } from '../../src/components/ModernCard';
+import { supabase } from '../../src/lib/supabase';
 import { getShopsByLocation } from '../../src/lib/supabaseUtils';
 import { useAuthStore } from '../../src/store/authStore';
 import { Shop } from '../../src/types/supabase';
@@ -33,8 +37,11 @@ export default function CustomerHomeScreen() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [shops, setShops] = useState<(Shop & { distanceKm?: number })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationStatus, setLocationStatus] = useState<string>('');
+  const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(true);
   
   const { user } = useAuthStore();
 
@@ -46,10 +53,54 @@ export default function CustomerHomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch user location and shops
+  // Fetch user location, shops, and upcoming bookings
   useEffect(() => {
-    fetchLocationAndShops();
+    loadInitialData();
   }, []);
+
+  const loadInitialData = async () => {
+    Promise.all([
+      fetchLocationAndShops(),
+      fetchUpcomingBookings()
+    ]).finally(() => {
+      setRefreshing(false);
+    });
+  };
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadInitialData();
+  }, []);
+
+  const fetchUpcomingBookings = async () => {
+    if (!user?.id) return;
+    
+    setLoadingBookings(true);
+    try {
+      const { data: bookings, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          shops:shop_id (name, address, average_rating),
+          services:service_id (name, price, duration)
+        `)
+        .eq('customer_id', user.id)
+        .in('status', ['pending', 'confirmed'])
+        .order('booking_date', { ascending: true })
+        .limit(3);
+        
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        return;
+      }
+      
+      setUpcomingBookings(bookings || []);
+    } catch (error) {
+      console.error('Error in fetchUpcomingBookings:', error);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
 
   const fetchLocationAndShops = async () => {
     setLoading(true);
@@ -141,36 +192,65 @@ export default function CustomerHomeScreen() {
       {({ pressed }) => (
         <ModernCard pressed={pressed} delay={index * 100}>
           <View className="space-y-3">
-            <View className="h-40 bg-dark-background rounded-lg items-center justify-center">
-              <Text className="text-secondary-light text-lg">
-                {item.name}
-              </Text>
+            <View className="h-40 bg-dark-background rounded-lg overflow-hidden">
+              {item.image_url ? (
+                <Image
+                  source={{ uri: item.image_url }}
+                  style={{ width: '100%', height: '100%' }}
+                  contentFit="cover"
+                  transition={500}
+                />
+              ) : (
+                <View className="flex-1 items-center justify-center">
+                  <Ionicons name="cut-outline" size={32} color="#A1A1AA" />
+                  <Text className="text-secondary-light text-sm mt-2">No image available</Text>
+                </View>
+              )}
+              
+              {/* Shop name overlay */}
+              <BlurView intensity={80} tint="dark" className="absolute bottom-0 left-0 right-0">
+                <View className="py-2 px-3">
+                  <Text className="text-primary-light text-lg font-semibold">
+                    {item.name}
+                  </Text>
+                </View>
+              </BlurView>
             </View>
             
             <View>
-              <Text className="text-primary-light text-lg font-bold">
-                {item.name}
-              </Text>
-              <Text className="text-secondary-light text-sm mt-1">
+              <View className="flex-row items-center">
+                <Ionicons name="location" size={16} color="#A1A1AA" />
+                <Text className="text-secondary-light text-sm ml-1 flex-1">
+                  {item.address}
+                </Text>
+              </View>
+              
+              <Text className="text-secondary-light text-sm mt-2 mb-3">
                 {item.description || 'Professional barbering services'}
               </Text>
-              <Text className="text-secondary-light text-xs mt-1">
-                {item.address}
-              </Text>
               
-              <View className="flex-row items-center justify-between mt-2">
+              <View className="flex-row items-center justify-between mt-1">
                 {item.average_rating && item.average_rating > 0 && (
-                  <View className="flex-row items-center">
-                    <Text className="text-brand-primary text-sm font-semibold">
-                      ⭐ {item.average_rating.toFixed(1)}
+                  <View className="flex-row items-center bg-brand-primary/10 px-2 py-1 rounded-md">
+                    <Ionicons name="star" size={14} color="#CB9C5E" />
+                    <Text className="text-brand-primary text-sm font-semibold ml-1">
+                      {item.average_rating.toFixed(1)}
                     </Text>
+                    {item.total_ratings && (
+                      <Text className="text-secondary-light text-xs ml-1">
+                        ({item.total_ratings})
+                      </Text>
+                    )}
                   </View>
                 )}
                 
                 {item.distanceKm && (
-                  <Text className="text-secondary-light text-xs italic">
-                    {item.distanceKm.toFixed(1)} km away
-                  </Text>
+                  <View className="flex-row items-center">
+                    <Ionicons name="navigate" size={14} color="#A1A1AA" />
+                    <Text className="text-secondary-light text-xs ml-1">
+                      {item.distanceKm.toFixed(1)} km
+                    </Text>
+                  </View>
                 )}
               </View>
             </View>
@@ -180,10 +260,23 @@ export default function CustomerHomeScreen() {
     </Pressable>
   );
 
+  // Navigate to booking details
+  const handleBookingPress = (bookingId: string) => {
+    router.push(`/(customer)/booking/confirmation?id=${bookingId}`);
+  };
+
   return (
     <ScrollView 
       className="flex-1 bg-dark-background"
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#CB9C5E']}
+          tintColor="#CB9C5E"
+        />
+      }
     >
       {/* Header */}
       <View className="px-6 pt-12 pb-6">
@@ -198,6 +291,69 @@ export default function CustomerHomeScreen() {
             Find the perfect barber near you
           </Text>
         </MotiView>
+      </View>
+
+      {/* Upcoming bookings */}
+      <View className="px-6 mb-8">
+        <Text className="text-primary-light text-2xl font-semibold mb-4">
+          Upcoming Appointments
+        </Text>
+        
+        {loadingBookings ? (
+          <ModernCard shimmer delay={200}>
+            <View className="h-24 items-center justify-center">
+              <ActivityIndicator size="small" color="#CB9C5E" />
+              <Text className="text-secondary-light mt-2">Loading your appointments...</Text>
+            </View>
+          </ModernCard>
+        ) : upcomingBookings.length === 0 ? (
+          <ModernCard delay={200}>
+            <View className="flex-row items-center">
+              <View className="w-12 h-12 rounded-full bg-dark-background items-center justify-center mr-4">
+                <Ionicons name="calendar-outline" size={24} color="#A1A1AA" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-primary-light text-lg font-medium">No upcoming appointments</Text>
+                <Text className="text-secondary-light mt-1">Book your next visit to secure your spot</Text>
+              </View>
+            </View>
+          </ModernCard>
+        ) : (
+          upcomingBookings.map((booking) => (
+            <ModernCard 
+              key={booking.id} 
+              delay={200}
+              className="mb-3"
+              onPress={() => handleBookingPress(booking.id)}
+            >
+              <View className="flex-row">
+                <View className="w-12 h-12 rounded-full bg-brand-primary/20 items-center justify-center mr-4">
+                  <Ionicons name="cut-outline" size={20} color="#CB9C5E" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-primary-light text-lg font-medium">{booking.shops.name}</Text>
+                  <Text className="text-brand-primary font-medium">
+                    {new Date(booking.booking_date).toLocaleDateString()} at {booking.booking_time}
+                  </Text>
+                  <Text className="text-secondary-light mt-1">
+                    {booking.services.name} · ${booking.services.price}
+                  </Text>
+                </View>
+                <View>
+                  <View className={`px-3 py-1 rounded-full ${
+                    booking.status === 'confirmed' ? 'bg-status-confirmed/20' : 'bg-status-pending/20'
+                  }`}>
+                    <Text className={`text-xs ${
+                      booking.status === 'confirmed' ? 'text-status-confirmed' : 'text-status-pending'
+                    }`}>
+                      {booking.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </ModernCard>
+          ))
+        )}
       </View>
 
       {/* Slider */}
