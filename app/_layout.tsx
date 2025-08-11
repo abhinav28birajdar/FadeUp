@@ -5,8 +5,9 @@ import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { useColorScheme } from 'react-native';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { supabase } from '@/src/lib/supabase';
 import { useAuthStore } from '@/src/store/authStore';
 
@@ -105,38 +106,40 @@ export default function RootLayout() {
   }
 
   return (
-    <LinearGradient
-      colors={['#121212', '#1a1a1a']}
-      style={{ flex: 1 }}
-    >
-      <ThemeProvider value={DarkTheme}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: 'slide_from_right',
-            animationDuration: 300,
-          }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen 
-            name="(auth)" 
-            options={{ animation: 'fade' }}
-          />
-          {session && user && role === 'customer' && (
+    <ErrorBoundary>
+      <LinearGradient
+        colors={['#121212', '#1a1a1a']}
+        style={{ flex: 1 }}
+      >
+        <ThemeProvider value={DarkTheme}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: 'slide_from_right',
+              animationDuration: 300,
+            }}
+          >
+            <Stack.Screen name="index" />
             <Stack.Screen 
-              name="(customer)" 
+              name="(auth)" 
               options={{ animation: 'fade' }}
             />
-          )}
-          {session && user && role === 'shopkeeper' && (
-            <Stack.Screen 
-              name="(shopkeeper)" 
-              options={{ animation: 'fade' }}
-            />
-          )}
-        </Stack>
-        <StatusBar style="light" />
-      </ThemeProvider>
-    </LinearGradient>
+            {session && user && role === 'customer' && (
+              <Stack.Screen 
+                name="(customer)" 
+                options={{ animation: 'fade' }}
+              />
+            )}
+            {session && user && role === 'shopkeeper' && (
+              <Stack.Screen 
+                name="(shopkeeper)" 
+                options={{ animation: 'fade' }}
+              />
+            )}
+          </Stack>
+          <StatusBar style="light" />
+        </ThemeProvider>
+      </LinearGradient>
+    </ErrorBoundary>
   );
 }
