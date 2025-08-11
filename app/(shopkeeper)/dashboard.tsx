@@ -74,13 +74,32 @@ export default function ShopkeeperDashboardScreen() {
   useEffect(() => {
     if (shop?.id) {
       // Subscribe to real-time queue updates
-      const unsubscribe = subscribeToQueueUpdates(shop.id, (updatedQueue) => {
-        setQueue(updatedQueue as QueueWithDetails[]);
-        setStats(prev => ({
-          ...prev,
-          queueLength: updatedQueue.length,
-          averageWaitTime: updatedQueue.length * 25, // 25 mins average per person
-        }));
+      const unsubscribe = subscribeToQueueUpdates(shop.id, async (payload) => {
+        // Need to fetch the current queue data since the payload doesn't contain it directly
+        const { data: updatedQueueData } = await supabase
+          .from('queue')
+          .select(`
+            *,
+            users:customer_id(id, first_name, last_name, avatar_url),
+            bookings:booking_id(
+              id,
+              service_ids,
+              total_price,
+              notes
+            )
+          `)
+          .eq('shop_id', shop.id)
+          .in('status', ['waiting', 'ready_next', 'in_service'])
+          .order('position', { ascending: true });
+          
+        if (updatedQueueData) {
+          setQueue(updatedQueueData as QueueWithDetails[]);
+          setStats(prev => ({
+            ...prev,
+            queueLength: updatedQueueData.length,
+            averageWaitTime: updatedQueueData.length * 25, // 25 mins average per person
+          }));
+        }
       });
 
       return () => {

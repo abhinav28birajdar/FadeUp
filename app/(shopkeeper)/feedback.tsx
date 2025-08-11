@@ -1,214 +1,416 @@
-import { supabase } from "@/src/lib/supabase";
-import { useAuthStore } from "@/src/store/authStore";
-import { useRouter } from "expo-router";
-import { MotiView } from "moti";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { MotiView } from 'moti';
+import { useCallback, useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Pressable,
+    RefreshControl,
+    Text,
+    TextInput,
+    View
+} from 'react-native';
 
-interface FeedbackDisplay {
-  id: string;
-  customer_id: string;
-  shop_id: string;
-  booking_id: string;
-  rating: number;
-  comment: string;
-  created_at: string;
-  customer_name: string;
+import { ModernCard } from '../../src/components/ModernCard';
+import { supabase } from '../../src/lib/supabase';
+import { useAuthStore } from '../../src/store/authStore';
+import { Booking, Feedback, Service } from '../../src/types/supabase';
+
+interface ExtendedFeedbackWithDetails extends Feedback {
+  customer?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    avatar_url?: string;
+    phone_number?: string;
+  };
+  booking?: Booking;
+  service?: Service;
 }
 
 export default function FeedbackScreen() {
-  const router = useRouter();
   const { user } = useAuthStore();
-  const [feedbacks, setFeedbacks] = useState<FeedbackDisplay[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [feedback, setFeedback] = useState<ExtendedFeedbackWithDetails[]>([]);
+  const [filter, setFilter] = useState<'all' | 'positive' | 'negative' | 'neutral'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [stats, setStats] = useState({
+    averageRating: 0,
+    totalRatings: 0,
+    fiveStars: 0,
+    fourStars: 0,
+    threeStars: 0,
+    twoStars: 0,
+    oneStars: 0,
+  });
 
   useEffect(() => {
-    const fetchFeedbacks = async () => {
-      try {
-        if (!user?.id) {
-          setLoading(false);
-          return;
-        }
+    loadFeedbackData();
+  }, []);
 
-        // First get the shop owned by this user
-        const { data: shopData, error: shopError } = await supabase
-          .from('shops')
-          .select('id')
-          .eq('owner_id', user.id)
-          .single();
+  const loadFeedbackData = async () => {
+    try {
+      setLoading(true);
 
-        if (shopError || !shopData) {
-          console.error('Error fetching shop:', shopError);
-          setLoading(false);
-          return;
-        }
-        
-        // Fetch reviews for this shop with customer details
-        const { data: reviewsData, error: reviewsError } = await supabase
-          .from('reviews')
-          .select(`
-            *,
-            users:customer_id(full_name)
-          `)
-          .eq('shop_id', shopData.id)
-          .order('created_at', { ascending: false });
-
-        if (reviewsError) {
-          console.error('Error fetching reviews:', reviewsError);
-        } else if (reviewsData) {
-          const formattedFeedbacks = reviewsData.map(review => ({
-            id: review.id,
-            customer_id: review.customer_id,
-            shop_id: review.shop_id,
-            booking_id: review.booking_id,
-            rating: review.rating,
-            comment: review.comment || '',
-            created_at: review.created_at,
-            customer_name: review.users?.full_name || 'Anonymous Customer',
-          }));
-
-          setFeedbacks(formattedFeedbacks);
-        }
-      } catch (error) {
-        console.error('Error in fetchFeedbacks:', error);
-      } finally {
-        setLoading(false);
+      if (!user?.shop_id) {
+        Alert.alert('Error', 'No shop associated with your account');
+        return;
       }
-    };
 
-    fetchFeedbacks();
-  }, [user?.id]);
+      // Fetch feedback with customer details
+      const { data, error } = await supabase
+        .from('feedback')
+        .select(`
+          *,
+          customer:customer_id (id, first_name, last_name, avatar_url, email, phone_number),
+          booking:booking_id (id, booking_date, status, total_price, service_ids),
+          services:service_id (id, name, price, duration)
+        `)
+        .eq('shop_id', user.shop_id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching feedback:', error);
+        return;
+      }
+
+      // Set feedback data
+      setFeedback(data || []);
+
+      // Calculate stats
+      if (data && data.length > 0) {
+        const totalRatings = data.length;
+        const sumRatings = data.reduce((sum, item) => sum + item.rating, 0);
+        const averageRating = sumRatings / totalRatings;
+
+        // Count ratings by star
+        const fiveStars = data.filter(item => item.rating === 5).length;
+        const fourStars = data.filter(item => item.rating === 4).length;
+        const threeStars = data.filter(item => item.rating === 3).length;
+        const twoStars = data.filter(item => item.rating === 2).length;
+        const oneStars = data.filter(item => item.rating === 1).length;
+
+        setStats({
+          averageRating,
+          totalRatings,
+          fiveStars,
+          fourStars,
+          threeStars,
+          twoStars,
+          oneStars,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading feedback:', error);
+      Alert.alert('Error', 'Failed to load feedback data');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadFeedbackData();
+  }, []);
+
+  const renderRatingBar = (filled: number, total: number, label: string, count: number, percentage: number) => {
+    return (
+      <View className="flex-row items-center mb-2">
+        <Text className="text-secondary-light w-12">{label}</Text>
+        <View className="flex-1 h-3 bg-dark-card rounded-full overflow-hidden ml-2 mr-2">
+          <View 
+            className="h-full bg-brand-primary rounded-full" 
+            style={{ width: `${percentage}%` }}
+          />
+        </View>
+        <Text className="text-secondary-light text-xs w-8">{count}</Text>
+      </View>
+    );
+  };
+
+  const getFilteredFeedback = () => {
+    let filtered = feedback;
+
+    // Apply rating filter
+    if (filter === 'positive') {
+      filtered = filtered.filter(item => item.rating >= 4);
+    } else if (filter === 'negative') {
+      filtered = filtered.filter(item => item.rating <= 2);
+    } else if (filter === 'neutral') {
+      filtered = filtered.filter(item => item.rating === 3);
+    }
+
+    // Apply search query filter if exists
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.comment?.toLowerCase().includes(query) ||
+        `${item.customer?.first_name} ${item.customer?.last_name}`.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  };
+
+  const renderFilterButton = (filterValue: typeof filter, label: string) => (
+    <Pressable onPress={() => setFilter(filterValue)}>
+      {({ pressed }) => (
+        <MotiView
+          animate={{ 
+            scale: pressed ? 0.95 : 1,
+            backgroundColor: filter === filterValue ? '#CB9C5E20' : 'transparent',
+          }}
+          className={`px-4 py-2 rounded-lg ${filter === filterValue ? 'border border-brand-primary/30' : ''}`}
+        >
+          <Text className={`font-medium ${filter === filterValue ? 'text-brand-primary' : 'text-secondary-light'}`}>
+            {label}
+          </Text>
+        </MotiView>
+      )}
+    </Pressable>
+  );
 
   const renderStars = (rating: number) => {
     const stars = [];
     for (let i = 1; i <= 5; i++) {
       stars.push(
-        <Text key={i} className={`text-lg ${i <= rating ? 'text-yellow-500' : 'text-gray-300'}`}>
-          ⭐
-        </Text>
+        <Ionicons 
+          key={i}
+          name={i <= rating ? 'star' : 'star-outline'} 
+          size={16} 
+          color={i <= rating ? '#CB9C5E' : '#71717A'} 
+        />
       );
     }
-    return stars;
+    return <View className="flex-row">{stars}</View>;
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const renderFeedbackItem = ({ item, index }: { item: FeedbackDisplay; index: number }) => (
+  const renderFeedbackItem = ({ item, index }: { item: ExtendedFeedbackWithDetails; index: number }) => (
     <MotiView
       from={{ opacity: 0, translateY: 20 }}
       animate={{ opacity: 1, translateY: 0 }}
-      transition={{
-        duration: 300,
-      }}
-      className="bg-white rounded-2xl p-4 mx-4 mb-3 shadow-sm"
+      transition={{ delay: index * 50 }}
+      className="mb-4"
     >
-      <View className="flex-row justify-between items-start mb-3">
-        <View className="flex-1">
-          <Text className="text-lg font-semibold text-gray-900">{item.customer_name}</Text>
-          <View className="flex-row items-center mt-1">
-            {renderStars(item.rating)}
-            <Text className="ml-2 text-sm text-gray-600">({item.rating}/5)</Text>
-          </View>
-        </View>
-        <Text className="text-xs text-gray-500">{formatDate(item.created_at)}</Text>
-      </View>
-
-      {item.comment && (
-        <View className="bg-gray-50 p-3 rounded-lg mb-3">
-          <Text className="text-gray-700">{item.comment}</Text>
-        </View>
-      )}
-
-      <Pressable
-        className="bg-[#CB9C5E] py-2 px-4 rounded-lg self-start"
+      <ModernCard
         onPress={() => router.push(`/(shopkeeper)/feedback/${item.id}`)}
       >
-        <Text className="text-white font-medium">View Details</Text>
-      </Pressable>
+        <View className="p-4">
+          {/* Header with customer info and rating */}
+          <View className="flex-row justify-between items-center mb-3">
+            <View className="flex-row items-center">
+              <View className="w-10 h-10 bg-brand-primary/20 rounded-full items-center justify-center mr-3">
+                {item.customer?.avatar_url ? (
+                  <Image
+                    source={{ uri: item.customer.avatar_url }}
+                    style={{ width: 40, height: 40 }}
+                    contentFit="cover"
+                    className="rounded-full"
+                  />
+                ) : (
+                  <Text className="text-brand-primary font-semibold">
+                    {item.customer?.first_name?.[0]}{item.customer?.last_name?.[0]}
+                  </Text>
+                )}
+              </View>
+              <View>
+                <Text className="text-primary-light font-semibold">
+                  {item.customer?.first_name} {item.customer?.last_name}
+                </Text>
+                <Text className="text-secondary-light text-xs">
+                  {new Date(item.created_at).toLocaleDateString()}
+                </Text>
+              </View>
+            </View>
+            {renderStars(item.rating)}
+          </View>
+          
+          {/* Service info */}
+          <View className="bg-dark-background/60 px-3 py-2 rounded-lg mb-3">
+            <Text className="text-secondary-light text-xs">
+              {item.booking?.service_ids ? 
+                `Service: ${item.booking.service_ids.length > 1 ? 'Multiple services' : 'Single service'}` : 
+                'Service information unavailable'}
+            </Text>
+          </View>
+
+          {/* Comment */}
+          {item.comment ? (
+            <View className="bg-dark-background/30 p-3 rounded-lg">
+              <Text className="text-secondary-light">"{item.comment}"</Text>
+            </View>
+          ) : (
+            <Text className="text-secondary-light italic">No comment provided</Text>
+          )}
+
+          {/* View Details */}
+          <View className="flex-row justify-end mt-3">
+            <Ionicons name="chevron-forward" size={16} color="#A1A1AA" />
+          </View>
+        </View>
+      </ModernCard>
     </MotiView>
   );
 
+  const filteredFeedback = getFilteredFeedback();
+
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-50">
+      <View className="flex-1 bg-dark-background justify-center items-center">
         <ActivityIndicator size="large" color="#CB9C5E" />
-        <Text className="mt-4 text-gray-600">Loading feedback...</Text>
+        <Text className="text-secondary-light mt-4">Loading feedback...</Text>
       </View>
     );
   }
 
-  const averageRating = feedbacks.length > 0 
-    ? (feedbacks.reduce((sum, item) => sum + item.rating, 0) / feedbacks.length).toFixed(1)
-    : '0.0';
-
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-dark-background">
       {/* Header */}
-      <MotiView
-        from={{ opacity: 0, translateY: -20 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        transition={{
-          duration: 300,
-        }}
-        className="bg-[#CB9C5E] pt-12 pb-6 px-6"
-      >
-        <Text className="text-2xl font-bold text-white mb-1">Customer Feedback</Text>
-        <Text className="text-white/90">Reviews and ratings from your customers</Text>
-      </MotiView>
-
-      {/* Stats */}
-      <View className="flex-row px-4 -mt-4 mb-6">
+      <View className="px-6 pt-16 pb-6">
         <MotiView
-          from={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{
-            duration: 300,
-          }}
-          className="flex-1 bg-white rounded-2xl p-4 mr-2 shadow-sm"
+          from={{ opacity: 0, translateY: -20 }}
+          animate={{ opacity: 1, translateY: 0 }}
         >
-          <Text className="text-2xl font-bold text-[#CB9C5E]">{averageRating}</Text>
-          <Text className="text-gray-600">Average Rating</Text>
-        </MotiView>
-        
-        <MotiView
-          from={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{
-            duration: 300,
-          }}
-          className="flex-1 bg-white rounded-2xl p-4 ml-2 shadow-sm"
-        >
-          <Text className="text-2xl font-bold text-[#CB9C5E]">{feedbacks.length}</Text>
-          <Text className="text-gray-600">Total Reviews</Text>
+          <Text className="text-primary-light text-4xl font-extrabold">
+            Customer Feedback
+          </Text>
+          <Text className="text-secondary-light text-lg mt-1">
+            Review what your customers are saying
+          </Text>
         </MotiView>
       </View>
 
-      {/* Feedback List */}
-      {feedbacks.length > 0 ? (
-        <FlatList
-          data={feedbacks}
-          renderItem={renderFeedbackItem}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 100 }}
-        />
-      ) : (
-        <View className="flex-1 justify-center items-center px-6">
-          <Text className="text-xl font-semibold text-gray-900 mb-2">No Reviews Yet</Text>
-          <Text className="text-gray-600 text-center">
-            When customers leave reviews for your services, they'll appear here.
-          </Text>
-        </View>
-      )}
+      <FlatList
+        data={filteredFeedback}
+        renderItem={renderFeedbackItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}
+        ListHeaderComponent={(
+          <>
+            {/* Stats Summary Card */}
+            <MotiView
+              from={{ opacity: 0, translateY: 20 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ delay: 100 }}
+              className="mb-6"
+            >
+              <ModernCard>
+                <LinearGradient
+                  colors={['#1f1f1f', '#121212']}
+                  className="p-5 rounded-t-xl"
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View>
+                      <Text className="text-secondary-light">
+                        Average Rating
+                      </Text>
+                      <View className="flex-row items-center">
+                        <Text className="text-primary-light text-4xl font-bold mr-2">
+                          {stats.averageRating.toFixed(1)}
+                        </Text>
+                        <View>
+                          {renderStars(Math.round(stats.averageRating))}
+                          <Text className="text-secondary-light text-xs mt-1">
+                            {stats.totalRatings} ratings
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View className="items-center">
+                      <Text className="text-secondary-light">
+                        Total Feedback
+                      </Text>
+                      <Text className="text-primary-light text-3xl font-bold">
+                        {stats.totalRatings}
+                      </Text>
+                    </View>
+                  </View>
+                </LinearGradient>
+
+                <View className="p-4">
+                  {/* Rating distribution */}
+                  {renderRatingBar(5, 5, '5 stars', stats.fiveStars, (stats.fiveStars / stats.totalRatings) * 100 || 0)}
+                  {renderRatingBar(4, 5, '4 stars', stats.fourStars, (stats.fourStars / stats.totalRatings) * 100 || 0)}
+                  {renderRatingBar(3, 5, '3 stars', stats.threeStars, (stats.threeStars / stats.totalRatings) * 100 || 0)}
+                  {renderRatingBar(2, 5, '2 stars', stats.twoStars, (stats.twoStars / stats.totalRatings) * 100 || 0)}
+                  {renderRatingBar(1, 5, '1 star', stats.oneStars, (stats.oneStars / stats.totalRatings) * 100 || 0)}
+                </View>
+              </ModernCard>
+            </MotiView>
+
+            {/* Search Bar */}
+            <MotiView
+              from={{ opacity: 0, translateY: 20 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ delay: 150 }}
+              className="mb-6"
+            >
+              <View className="flex-row items-center bg-dark-card rounded-xl pl-4">
+                <Ionicons name="search" size={20} color="#71717A" />
+                <TextInput
+                  className="flex-1 py-3 px-2 text-primary-light"
+                  placeholder="Search feedback..."
+                  placeholderTextColor="#71717A"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery ? (
+                  <Pressable onPress={() => setSearchQuery('')} className="p-3">
+                    <Ionicons name="close-circle" size={20} color="#71717A" />
+                  </Pressable>
+                ) : null}
+              </View>
+            </MotiView>
+
+            {/* Filters */}
+            <MotiView
+              from={{ opacity: 0, translateY: 20 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ delay: 200 }}
+              className="mb-6"
+            >
+              <Text className="text-primary-light text-xl font-semibold mb-3">Filter Reviews</Text>
+              <View className="flex-row space-x-2">
+                {renderFilterButton('all', 'All')}
+                {renderFilterButton('positive', 'Positive')}
+                {renderFilterButton('neutral', 'Neutral')}
+                {renderFilterButton('negative', 'Negative')}
+              </View>
+            </MotiView>
+
+            {filteredFeedback.length === 0 && (
+              <ModernCard className="py-8 items-center justify-center">
+                <Ionicons name="chatbubbles-outline" size={48} color="#71717A" />
+                <Text className="text-secondary-light mt-4 text-center">
+                  No feedback found matching your filters
+                </Text>
+              </ModernCard>
+            )}
+
+            {filteredFeedback.length > 0 && (
+              <Text className="text-primary-light text-xl font-semibold mb-3">
+                {filteredFeedback.length} {filteredFeedback.length === 1 ? 'Review' : 'Reviews'}
+              </Text>
+            )}
+          </>
+        )}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#CB9C5E']}
+            tintColor="#CB9C5E"
+          />
+        }
+      />
     </View>
   );
 }

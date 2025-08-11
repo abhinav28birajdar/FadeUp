@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { ModernCard } from '../../src/components/ModernCard';
-import { getShopsByLocation } from '../../src/lib/supabaseUtils';
+import supabaseUtils from '../../src/lib/supabaseUtils';
 import { useAuthStore } from '../../src/store/authStore';
 import { Shop } from '../../src/types/supabase';
 import { getCurrentUserLocation, requestLocationPermissions } from '../../src/utils/location';
@@ -54,7 +54,7 @@ export default function ExploreMapScreen() {
       const currentLat = userLocation?.latitude || region.latitude;
       const currentLng = userLocation?.longitude || region.longitude;
       
-      const result = await getShopsByLocation(currentLat, currentLng, 50); // 50km radius
+      const result = await supabaseUtils.shopUtils.getShopsByLocation(currentLat, currentLng, 50); // 50km radius
       
       if (result.error) {
         console.error('Error fetching shops:', result.error);

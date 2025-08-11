@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { ModernCard } from '../../src/components/ModernCard';
 import { supabase } from '../../src/lib/supabase';
-import { getShopsByLocation } from '../../src/lib/supabaseUtils';
+import supabaseUtils from '../../src/lib/supabaseUtils';
 import { useAuthStore } from '../../src/store/authStore';
 import { Shop } from '../../src/types/supabase';
 import { getCurrentUserLocation, requestLocationPermissions } from '../../src/utils/location';
@@ -117,7 +117,7 @@ export default function CustomerHomeScreen() {
           setLocationStatus('Location found');
           
           // Fetch nearby shops using the utility function
-          const result = await getShopsByLocation(
+          const result = await supabaseUtils.shopUtils.getShopsByLocation(
             location.latitude,
             location.longitude,
             20 // 20km radius
@@ -135,7 +135,7 @@ export default function CustomerHomeScreen() {
         } else {
           setLocationStatus('Could not get location');
           // Fetch all shops if location not available
-          const result = await getShopsByLocation(0, 0, 1000); // Large radius to get all
+          const result = await supabaseUtils.shopUtils.getShopsByLocation(0, 0, 1000); // Large radius to get all
           if (result.data) {
             setShops(result.data);
           }
@@ -144,7 +144,7 @@ export default function CustomerHomeScreen() {
       } else {
         setLocationStatus('Location permission denied');
         // Fetch all shops if location not available
-        const result = await getShopsByLocation(0, 0, 1000); // Large radius to get all
+        const result = await supabaseUtils.shopUtils.getShopsByLocation(0, 0, 1000); // Large radius to get all
         if (result.data) {
           setShops(result.data);
         }

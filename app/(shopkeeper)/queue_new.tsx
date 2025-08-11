@@ -173,8 +173,8 @@ export default function EnhancedQueueScreen() {
         // Calculate estimated total wait time
         const totalWaitTime = formattedQueue
           .filter(item => item.status === 'waiting')
-          .reduce((total, item) => {
-            const serviceDuration = item.services.reduce((sum, service) => sum + (service.duration || 30), 0);
+          .reduce((total: number, item: any) => {
+            const serviceDuration = item.services.reduce((sum: number, service: any) => sum + (service.duration || 30), 0);
             return total + serviceDuration;
           }, 0);
         

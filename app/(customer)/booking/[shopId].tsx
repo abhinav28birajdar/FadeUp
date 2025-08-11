@@ -3,18 +3,18 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MotiView } from 'moti';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { ModernCard } from '../../../src/components/ModernCard';
 import { supabase } from '../../../src/lib/supabase';
-import { createBooking, joinQueue } from '../../../src/lib/supabaseUtils';
+import supabaseUtils from '../../../src/lib/supabaseUtils';
 import { useAuthStore } from '../../../src/store/authStore';
 import { Service, Shop } from '../../../src/types/supabase';
 
@@ -126,7 +126,7 @@ export default function BookingScreen() {
       const formattedDate = bookingDate.toISOString().split("T")[0];
 
       // Create booking using utility function
-      const bookingResult = await createBooking({
+      const bookingResult = await supabaseUtils.bookingUtils.createLegacyBooking({
         customer_id: user.id,
         shop_id: shopId as string,
         service_id: selectedServiceId,
@@ -146,7 +146,7 @@ export default function BookingScreen() {
       }
 
       // Join the queue using utility function
-      const queueResult = await joinQueue({
+      const queueResult = await supabaseUtils.queueUtils.joinQueue({
         booking_id: booking.id,
         customer_id: user.id,
         shop_id: shopId as string,
