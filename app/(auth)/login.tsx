@@ -37,7 +37,7 @@ export default function LoginScreen() {
       if (data.session) {
         // Fetch user profile
         const { data: userProfile, error: profileError } = await supabase
-          .from('users')
+          .from('profiles')
           .select('*')
           .eq('id', data.session.user.id)
           .single();

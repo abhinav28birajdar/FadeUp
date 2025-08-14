@@ -54,12 +54,11 @@ export default function RegisterScreen() {
 
         // Create user profile
         const { error: profileError } = await supabase
-          .from('users')
+          .from('profiles')
           .insert({
             id: data.user.id,
             email: email.toLowerCase().trim(),
-            first_name: firstName.trim(),
-            last_name: lastName.trim(),
+            full_name: `${firstName.trim()} ${lastName.trim()}`,
             role: finalRole,
           });
 
@@ -77,10 +76,10 @@ export default function RegisterScreen() {
         const newUser = {
           id: data.user.id,
           email: email.toLowerCase().trim(),
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
+          full_name: `${firstName.trim()} ${lastName.trim()}`,
           role: finalRole,
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         };
         
         setUser(newUser);

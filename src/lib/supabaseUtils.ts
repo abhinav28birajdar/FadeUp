@@ -1,14 +1,14 @@
 import { PostgrestError } from '@supabase/supabase-js';
 import {
-  Booking, BookingInsert,
-  BookingWithDetails,
-  Feedback, FeedbackInsert,
-  QueueEntry, QueueEntryInsert,
-  Service,
-  ServiceInsert,
-  Shop, ShopInsert,
-  ShopWithDistance,
-  UserProfile, UserProfileInsert
+    Booking, BookingInsert,
+    BookingWithDetails,
+    Feedback, FeedbackInsert,
+    QueueEntry, QueueEntryInsert,
+    Service,
+    ServiceInsert,
+    Shop, ShopInsert,
+    ShopWithDistance,
+    UserProfile, UserProfileInsert
 } from '../types/supabase';
 import { supabase } from './supabase';
 
@@ -36,7 +36,7 @@ export const userUtils = {
       }
       
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
@@ -53,7 +53,7 @@ export const userUtils = {
   async getUserById(userId: string): Promise<SupabaseResponse<UserProfile>> {
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
@@ -70,7 +70,7 @@ export const userUtils = {
   async upsertProfile(profile: UserProfileInsert): Promise<SupabaseResponse<UserProfile>> {
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .upsert(profile)
         .select()
         .single();
@@ -87,7 +87,7 @@ export const userUtils = {
   async updateProfile(userId: string, updates: Partial<UserProfile>): Promise<SupabaseResponse<UserProfile>> {
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .update(updates)
         .eq('id', userId)
         .select()
@@ -98,27 +98,7 @@ export const userUtils = {
       return { data: null, error: error as Error };
     }
   },
-
-  /**
-   * Update user's push notification token
-   */
-  async updatePushToken(userId: string, token: string): Promise<SupabaseResponse<UserProfile>> {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .update({ expo_push_token: token })
-        .eq('id', userId)
-        .select()
-        .single();
-        
-      return { data, error };
-    } catch (error) {
-      return { data: null, error: error as Error };
-    }
-  },
-};
-
-/**
+};/**
  * Shop related functions
  */
 export const shopUtils = {
@@ -216,7 +196,7 @@ export const shopUtils = {
       const { data, error } = await supabase
         .from('shops')
         .select('*')
-        .eq('owner_id', userId)
+        .eq('shopkeeper_id', userId)
         .single();
         
       return { data, error };
@@ -784,7 +764,7 @@ export const queueUtils = {
       
       // If marking as in_progress, set the start time
       if (status === 'in_progress') {
-        updates.in_progress_start_time = new Date().toISOString();
+        updates.started_at = new Date().toISOString();
       }
       
       const { data, error } = await supabase
@@ -810,7 +790,7 @@ export const queueUtils = {
           case 'completed':
             bookingStatus = 'completed';
             break;
-          case 'skipped':
+          case 'cancelled':
             bookingStatus = 'cancelled';
             break;
           default:

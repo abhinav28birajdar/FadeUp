@@ -62,7 +62,7 @@ export default function RootLayout() {
       
       // Fetch user profile
       const { data: userProfile, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .single();
