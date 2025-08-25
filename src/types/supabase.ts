@@ -2,70 +2,68 @@ export interface UserProfile {
   id: string;
   email: string;
   role: 'customer' | 'shopkeeper';
-  full_name?: string;
-  phone?: string;
+  shop_id?: string;
+  first_name: string;
+  last_name: string;
+  phone_number?: string;
   avatar_url?: string;
+  expo_push_token?: string;
+  notification_settings_json?: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface Shop {
   id: string;
-  shopkeeper_id: string;
   name: string;
-  description?: string;
   address: string;
-  location: { lat: number; lng: number }; // Will be converted from PostGIS POINT
-  phone?: string;
+  description?: string;
+  owner_id: string;
+  latitude: number;
+  longitude: number;
+  phone_number?: string;
+  social_instagram?: string;
+  social_facebook?: string;
+  website_url?: string;
   image_url?: string;
-  operating_hours?: Record<string, any>;
-  status: 'open' | 'closed' | 'busy';
-  rating: number;
-  total_reviews: number;
+  average_rating?: number;
+  opening_hours_json?: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface Service {
   id: string;
   shop_id: string;
+  category_id?: string;
   name: string;
-  description?: string;
   price: number;
-  duration_minutes: number;
-  is_active: boolean;
+  duration: number;
+  description?: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface Booking {
   id: string;
   customer_id: string;
   shop_id: string;
-  service_id: string;
-  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
-  scheduled_time?: string;
-  estimated_start_time?: string;
-  actual_start_time?: string;
-  actual_end_time?: string;
+  service_ids: string[];
+  booking_date: string;
+  slot_time: string;
   total_price: number;
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
   notes?: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface QueueEntry {
   id: string;
   booking_id: string;
-  shop_id: string;
   customer_id: string;
+  shop_id: string;
   position: number;
-  status: 'waiting' | 'ready_next' | 'in_progress' | 'completed' | 'cancelled';
-  estimated_wait_time_minutes?: number;
-  joined_at: string;
-  started_at?: string;
-  completed_at?: string;
-  updated_at: string;
+  status: 'waiting' | 'in_progress' | 'ready_next' | 'completed' | 'skipped';
+  estimated_completion_time?: string;
+  in_progress_start_time?: string;
+  created_at: string;
 }
 
 export interface Feedback {
@@ -75,6 +73,15 @@ export interface Feedback {
   shop_id: string;
   rating: number;
   comment?: string;
+  created_at: string;
+  submitted_at: string;
+}
+
+// Service Category interface
+export interface ServiceCategory {
+  id: string;
+  name: string;
+  description?: string;
   created_at: string;
 }
 
@@ -102,15 +109,21 @@ export interface FeedbackWithDetails extends Feedback {
   shop?: Shop;
 }
 
+export interface ServiceWithCategory extends Service {
+  category?: ServiceCategory;
+}
+
 // Database insert/update types
-export interface UserProfileInsert extends Omit<UserProfile, 'created_at' | 'updated_at'> {}
+export interface UserProfileInsert extends Omit<UserProfile, 'id' | 'created_at'> {}
 
-export interface ShopInsert extends Omit<Shop, 'id' | 'created_at' | 'updated_at' | 'rating' | 'total_reviews'> {}
+export interface ShopInsert extends Omit<Shop, 'id' | 'created_at' | 'average_rating'> {}
 
-export interface ServiceInsert extends Omit<Service, 'id' | 'created_at' | 'updated_at'> {}
+export interface ServiceCategoryInsert extends Omit<ServiceCategory, 'id' | 'created_at'> {}
 
-export interface BookingInsert extends Omit<Booking, 'id' | 'created_at' | 'updated_at'> {}
+export interface ServiceInsert extends Omit<Service, 'id' | 'created_at'> {}
 
-export interface QueueEntryInsert extends Omit<QueueEntry, 'id' | 'joined_at' | 'updated_at'> {}
+export interface BookingInsert extends Omit<Booking, 'id' | 'created_at'> {}
 
-export interface FeedbackInsert extends Omit<Feedback, 'id' | 'created_at'> {}
+export interface QueueEntryInsert extends Omit<QueueEntry, 'id' | 'created_at'> {}
+
+export interface FeedbackInsert extends Omit<Feedback, 'id' | 'created_at' | 'submitted_at'> {}

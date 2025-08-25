@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { AnimatePresence, MotiView } from "moti";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { ModernCard } from "../../../src/components/ModernCard";
 import { supabase } from "../../../src/lib/supabase";
 import { useAuthStore } from "../../../src/store/authStore";
@@ -302,19 +303,17 @@ export default function BookingConfirmationScreen() {
                   </View>
                 </View>
                 
-                {booking?.customer_note && (
-                  <View className="flex-row items-start">
-                    <View className="w-8 h-8 rounded-full bg-brand-secondary/20 items-center justify-center mr-3">
-                      <Ionicons name="chatbox-outline" size={16} color="#CB9C5E" />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-secondary-light text-xs">YOUR NOTE</Text>
-                      <Text className="text-primary-light">{booking.customer_note}</Text>
-                    </View>
-                  </View>
-                )}
-                
-                <View className="flex-row items-center mt-2">
+          {booking?.notes && (
+            <View className="flex-row items-start">
+              <View className="w-8 h-8 rounded-full bg-brand-secondary/20 items-center justify-center mr-3">
+                <Ionicons name="chatbox-outline" size={16} color="#CB9C5E" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-secondary-light text-xs">YOUR NOTE</Text>
+                <Text className="text-primary-light">{booking.notes}</Text>
+              </View>
+            </View>
+          )}                <View className="flex-row items-center mt-2">
                   <View className="w-8 h-8 rounded-full bg-brand-secondary/20 items-center justify-center mr-3">
                     <Ionicons name="cash-outline" size={16} color="#CB9C5E" />
                   </View>
