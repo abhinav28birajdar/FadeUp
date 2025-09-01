@@ -236,11 +236,6 @@ export default function CustomerHomeScreen() {
                     <Text className="text-brand-primary text-sm font-semibold ml-1">
                       {item.average_rating.toFixed(1)}
                     </Text>
-                    {item.total_ratings && (
-                      <Text className="text-secondary-light text-xs ml-1">
-                        ({item.total_ratings})
-                      </Text>
-                    )}
                   </View>
                 )}
                 

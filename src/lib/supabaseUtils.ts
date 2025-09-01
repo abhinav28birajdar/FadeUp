@@ -764,7 +764,7 @@ export const queueUtils = {
       
       // If marking as in_progress, set the start time
       if (status === 'in_progress') {
-        updates.started_at = new Date().toISOString();
+        updates.in_progress_start_time = new Date().toISOString();
       }
       
       const { data, error } = await supabase
@@ -790,7 +790,7 @@ export const queueUtils = {
           case 'completed':
             bookingStatus = 'completed';
             break;
-          case 'cancelled':
+          case 'skipped':
             bookingStatus = 'cancelled';
             break;
           default:

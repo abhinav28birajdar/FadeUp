@@ -76,10 +76,10 @@ export default function RegisterScreen() {
         const newUser = {
           id: data.user.id,
           email: email.toLowerCase().trim(),
-          full_name: `${firstName.trim()} ${lastName.trim()}`,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
           role: finalRole,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
         };
         
         setUser(newUser);

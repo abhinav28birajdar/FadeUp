@@ -1,0 +1,239 @@
+{
+  "analysis_metadata": {
+    "generated_date": "2025-09-01",
+    "expo_sdk_from": "53.0.16",
+    "expo_sdk_to": "54.0.3",
+    "total_files_analyzed": 118,
+    "total_issues_found": 13,
+    "auto_fixes_applied": 10,
+    "manual_review_required": 3
+  },
+  "typescript_errors": [
+    {
+      "file": "app/(auth)/register.tsx",
+      "line": 85,
+      "error": "Argument of type '{ id: string; email: string; full_name: string; ... }' is not assignable to parameter of type 'UserProfile'",
+      "severity": "HIGH",
+      "status": "FIXED",
+      "fix_description": "Replaced full_name with first_name and last_name properties"
+    },
+    {
+      "file": "app/(customer)/booking/confirmation_new.tsx", 
+      "line": 174,
+      "error": "Property 'customer_note' does not exist on type 'Booking'",
+      "severity": "MEDIUM",
+      "status": "FIXED_BY_REMOVAL",
+      "fix_description": "File removed as duplicate, main confirmation.tsx uses correct 'notes' property"
+    },
+    {
+      "file": "app/(customer)/home.tsx",
+      "line": 239,
+      "error": "Property 'total_ratings' does not exist on type 'Shop'",
+      "severity": "MEDIUM", 
+      "status": "FIXED",
+      "fix_description": "Removed total_ratings property references"
+    },
+    {
+      "file": "src/lib/supabaseUtils.ts",
+      "line": 767,
+      "error": "Property 'started_at' does not exist on type 'Partial<QueueEntry>'",
+      "severity": "HIGH",
+      "status": "FIXED",
+      "fix_description": "Changed started_at to in_progress_start_time"
+    },
+    {
+      "file": "src/lib/supabaseUtils.ts",
+      "line": 793,
+      "error": "Type '\"cancelled\"' is not comparable to queue status enum",
+      "severity": "HIGH",
+      "status": "FIXED", 
+      "fix_description": "Mapped cancelled case to skipped status"
+    }
+  ],
+  "duplicate_files": [
+    {
+      "original": "app/(customer)/booking/confirmation.tsx",
+      "duplicate": "app/(customer)/booking/confirmation_new.tsx",
+      "action": "REMOVED",
+      "backup_location": "cleanup_backup/confirmation_new.tsx.backup",
+      "reason": "Newer version had TypeScript errors, kept stable version"
+    },
+    {
+      "original": "app/(customer)/shop/[id].tsx",
+      "duplicate": "app/(customer)/shop/[id]_new.tsx", 
+      "action": "REMOVED",
+      "backup_location": "cleanup_backup/shop_id_new.tsx.backup",
+      "reason": "Functionality identical, removed newer version"
+    },
+    {
+      "original": "app/(shopkeeper)/queue.tsx",
+      "duplicate": "app/(shopkeeper)/queue_new.tsx",
+      "action": "REMOVED", 
+      "backup_location": "cleanup_backup/queue_new.tsx.backup",
+      "reason": "Functionality identical, removed newer version"
+    },
+    {
+      "original": "app/(shopkeeper)/dashboard/booking/[id].tsx",
+      "duplicate": "app/(shopkeeper)/dashboard/booking/[id]_clean.tsx",
+      "action": "REMOVED",
+      "backup_location": "cleanup_backup/booking_id_clean.tsx.backup", 
+      "reason": "Clean version was experimental, kept original"
+    }
+  ],
+  "dependency_issues": [
+    {
+      "package": "expo-modules-core",
+      "issue": "Should not be installed directly",
+      "severity": "MEDIUM",
+      "status": "ATTEMPTED",
+      "note": "Package removal attempted but blocked by network issues"
+    },
+    {
+      "package": "expo-crypto", 
+      "issue": "Version ~13.1.0 does not exist",
+      "severity": "HIGH",
+      "status": "FIXED",
+      "fix": "Changed to ~13.0.2"
+    },
+    {
+      "package": "@expo/config-plugins",
+      "issue": "Version mismatch - expected ~10.1.1, found 7.9.2",
+      "severity": "MEDIUM",
+      "status": "PENDING",
+      "note": "Will be resolved with npm install"
+    }
+  ],
+  "configuration_conflicts": [
+    {
+      "file": "app.json",
+      "conflict_with": "app.config.ts", 
+      "issue": "Static app.json conflicts with dynamic app.config.ts",
+      "action": "REMOVED",
+      "backup_location": "cleanup_backup/app.json.backup",
+      "resolution": "Kept more comprehensive app.config.ts"
+    }
+  ],
+  "sdk_upgrade_changes": {
+    "expo": {
+      "from": "~53.0.16",
+      "to": "~54.0.3",
+      "breaking_changes": ["Router v4 migration", "New Metro requirements"]
+    },
+    "react_native": {
+      "from": "0.79.5", 
+      "to": "0.80.1",
+      "breaking_changes": ["Fabric renderer changes", "TurboModules updates"]
+    },
+    "expo_router": {
+      "from": "~3.4.8",
+      "to": "~4.0.6", 
+      "breaking_changes": ["File-based routing syntax", "Layout component changes"]
+    },
+    "react_native_reanimated": {
+      "from": "~3.8.1",
+      "to": "~3.16.1",
+      "breaking_changes": ["Animation API updates", "Shared value handling"]
+    }
+  },
+  "performance_analysis": {
+    "synchronous_operations": [
+      "src/utils/queueUtils.ts - calculateEstimatedCustomerWaitTime",
+      "src/lib/supabaseUtils.ts - batch queue operations"
+    ],
+    "large_renders": [
+      "app/(customer)/home.tsx - FlatList without optimization",
+      "app/(shopkeeper)/queue.tsx - Real-time queue list"
+    ],
+    "missing_optimizations": [
+      "Memoization in queue components",
+      "Virtualization for large lists", 
+      "Image caching optimization"
+    ]
+  },
+  "security_analysis": {
+    "strengths": [
+      "Environment variables properly used",
+      "Supabase RLS policies implemented",
+      "AsyncStorage for session persistence"
+    ],
+    "concerns": [
+      "Missing input validation in forms",
+      "No rate limiting on API calls",
+      "OAuth redirect URI hardcoded"
+    ]
+  },
+  "manual_steps_required": [
+    {
+      "step": 1,
+      "command": "npm install",
+      "description": "Install updated dependencies",
+      "estimated_time": "2-5 minutes"
+    },
+    {
+      "step": 2, 
+      "command": "npx expo-doctor",
+      "description": "Check for remaining issues",
+      "estimated_time": "1 minute"
+    },
+    {
+      "step": 3,
+      "command": "npx expo install --fix", 
+      "description": "Fix any remaining dependency mismatches",
+      "estimated_time": "2-5 minutes"
+    },
+    {
+      "step": 4,
+      "command": "npx expo start",
+      "description": "Test application startup",
+      "estimated_time": "2-3 minutes"
+    }
+  ],
+  "rollback_plan": {
+    "backup_location": "cleanup_backup/",
+    "files_backed_up": [
+      "app.json.backup",
+      "confirmation_new.tsx.backup", 
+      "shop_id_new.tsx.backup",
+      "queue_new.tsx.backup",
+      "booking_id_clean.tsx.backup"
+    ],
+    "rollback_steps": [
+      "Revert package.json changes",
+      "Restore files from cleanup_backup/",
+      "Run npm install",
+      "Verify functionality"
+    ]
+  },
+  "next_phases": {
+    "phase_3": {
+      "name": "Architecture & Testing",
+      "estimated_hours": "8-12",
+      "tasks": [
+        "Add unit tests for utils",
+        "Add integration tests for booking flow", 
+        "Implement CI/CD pipeline",
+        "Reorganize project structure"
+      ]
+    },
+    "phase_4": {
+      "name": "UX/UI Modernization", 
+      "estimated_hours": "6-8",
+      "tasks": [
+        "Update design system",
+        "Improve accessibility",
+        "Add loading states",
+        "Enhance animations"
+      ]
+    },
+    "phase_5": {
+      "name": "Performance & Real-time",
+      "estimated_hours": "4-6", 
+      "tasks": [
+        "Optimize FlatList rendering",
+        "Add memoization",
+        "Enhance real-time updates",
+        "Add offline support"
+      ]
+    }
+  }
+}
