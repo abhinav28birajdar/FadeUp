@@ -1,19 +1,54 @@
-import { router } from 'expo-router';
-import { MotiView } from 'moti';
-import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'react-native';
-import { ModernCard } from '../../src/components/ModernCard';
+import { router, useLocalSearchParams } from 'expo-router';
+import { MotiView, AnimatePresence } from 'moti';
+import React, { useState, useEffect } from 'react';
+import { 
+  ActivityIndicator, 
+  Alert, 
+  Pressable, 
+  Text, 
+  TextInput, 
+  View, 
+  TouchableOpacity, 
+  StyleSheet,
+  Dimensions,
+  StatusBar 
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { supabase } from '../../src/lib/supabase';
 import { useAuthStore } from '../../src/store/authStore';
 
+const { width } = Dimensions.get('window');
+
 export default function LoginScreen() {
+  const { userType } = useLocalSearchParams<{ userType?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [showSocialLogin, setShowSocialLogin] = useState(false);
   
-  const { role: selectedRole, setSession, setUser, setRole } = useAuthStore();
+  const { setSession, setUser, setRole } = useAuthStore();
+
+  const currentUserType = (userType as 'customer' | 'barber') || 'customer';
+  
+  const themeColors = {
+    customer: {
+      gradient: ['#667eea', '#764ba2'],
+      primary: '#4facfe',
+      accent: '#00f2fe',
+    },
+    barber: {
+      gradient: ['#fa709a', '#fee140'],
+      primary: '#fa709a',
+      accent: '#fee140',
+    },
+  };
+
+  const colors = themeColors[currentUserType];
 
   const handleLogin = async () => {
     if (!email || !password) {
