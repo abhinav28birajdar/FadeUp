@@ -1,16 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { ModernCard } from '../../src/components/ModernCard';
+import NearbyShopsList from '../../src/components/NearbyShopsList';
 import { supabase } from '../../src/lib/supabase';
-import supabaseUtils from '../../src/lib/supabaseUtils';
+import { Shop } from '../../src/services/shopDiscoveryService';
 import { useAuthStore } from '../../src/store/authStore';
-import { Shop } from '../../src/types/supabase';
-import { getCurrentUserLocation, requestLocationPermissions } from '../../src/utils/location';
 
 const SLIDER_DATA = [
   {
@@ -35,13 +32,10 @@ const SLIDER_DATA = [
 
 export default function CustomerHomeScreen() {
   const [activeSlide, setActiveSlide] = useState(0);
-  const [shops, setShops] = useState<(Shop & { distanceKm?: number })[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [locationStatus, setLocationStatus] = useState<string>('');
   const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
+  const [shopsRefreshTrigger, setShopsRefreshTrigger] = useState(0);
   
   const { user } = useAuthStore();
 
@@ -53,23 +47,16 @@ export default function CustomerHomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch user location, shops, and upcoming bookings
+  // Fetch upcoming bookings on load
   useEffect(() => {
-    loadInitialData();
+    fetchUpcomingBookings();
   }, []);
-
-  const loadInitialData = async () => {
-    Promise.all([
-      fetchLocationAndShops(),
-      fetchUpcomingBookings()
-    ]).finally(() => {
-      setRefreshing(false);
-    });
-  };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadInitialData();
+    fetchUpcomingBookings();
+    setShopsRefreshTrigger(prev => prev + 1);
+    setTimeout(() => setRefreshing(false), 1000);
   }, []);
 
   const fetchUpcomingBookings = async () => {
@@ -102,65 +89,8 @@ export default function CustomerHomeScreen() {
     }
   };
 
-  const fetchLocationAndShops = async () => {
-    setLoading(true);
-    setLocationStatus('Getting your location...');
-
-    try {
-      // Request location permissions
-      const permissions = await requestLocationPermissions();
-      
-      if (permissions?.status === 'granted') {
-        const location = await getCurrentUserLocation();
-        if (location) {
-          setUserLocation(location);
-          setLocationStatus('Location found');
-          
-          // Fetch nearby shops using the utility function
-          const result = await supabaseUtils.shopUtils.getShopsByLocation(
-            location.latitude,
-            location.longitude,
-            20 // 20km radius
-          );
-          
-          if (result.error) {
-            console.error('Error fetching nearby shops:', result.error);
-            setLocationStatus('Error loading nearby shops');
-            return;
-          }
-
-          const nearbyShops = result.data || [];
-          setShops(nearbyShops.map((shop: any) => ({ ...shop, distanceKm: shop.distance_km })));
-          setLocationStatus(`Found ${nearbyShops.length} shops within 20km`);
-        } else {
-          setLocationStatus('Could not get location');
-          // Fetch all shops if location not available
-          const result = await supabaseUtils.shopUtils.getShopsByLocation(0, 0, 1000); // Large radius to get all
-          if (result.data) {
-            setShops(result.data);
-          }
-          setLocationStatus('Showing all shops');
-        }
-      } else {
-        setLocationStatus('Location permission denied');
-        // Fetch all shops if location not available
-        const result = await supabaseUtils.shopUtils.getShopsByLocation(0, 0, 1000); // Large radius to get all
-        if (result.data) {
-          setShops(result.data);
-        }
-        setLocationStatus('Showing all shops');
-      }
-    } catch (error) {
-      console.error('Error in fetchLocationAndShops:', error);
-      setLocationStatus('Error loading data');
-      Alert.alert('Error', 'Failed to load shops');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleShopPress = (shopId: string) => {
-    router.push(`/(customer)/shop/${shopId}`);
+  const handleShopPress = (shop: Shop) => {
+    router.push(`/(customer)/shop/${shop.id}`);
   };
 
   const handleViewOnMap = () => {
@@ -187,73 +117,7 @@ export default function CustomerHomeScreen() {
     </View>
   );
 
-  const renderShopItem = ({ item, index }: { item: Shop & { distanceKm?: number }; index: number }) => (
-    <Pressable onPress={() => handleShopPress(item.id)} className="mb-4">
-      {({ pressed }) => (
-        <ModernCard pressed={pressed} delay={index * 100}>
-          <View className="space-y-3">
-            <View className="h-40 bg-dark-background rounded-lg overflow-hidden">
-              {item.image_url ? (
-                <Image
-                  source={{ uri: item.image_url }}
-                  style={{ width: '100%', height: '100%' }}
-                  contentFit="cover"
-                  transition={500}
-                />
-              ) : (
-                <View className="flex-1 items-center justify-center">
-                  <Ionicons name="cut-outline" size={32} color="#A1A1AA" />
-                  <Text className="text-secondary-light text-sm mt-2">No image available</Text>
-                </View>
-              )}
-              
-              {/* Shop name overlay */}
-              <BlurView intensity={80} tint="dark" className="absolute bottom-0 left-0 right-0">
-                <View className="py-2 px-3">
-                  <Text className="text-primary-light text-lg font-semibold">
-                    {item.name}
-                  </Text>
-                </View>
-              </BlurView>
-            </View>
-            
-            <View>
-              <View className="flex-row items-center">
-                <Ionicons name="location" size={16} color="#A1A1AA" />
-                <Text className="text-secondary-light text-sm ml-1 flex-1">
-                  {item.address}
-                </Text>
-              </View>
-              
-              <Text className="text-secondary-light text-sm mt-2 mb-3">
-                {item.description || 'Professional barbering services'}
-              </Text>
-              
-              <View className="flex-row items-center justify-between mt-1">
-                {item.average_rating && item.average_rating > 0 && (
-                  <View className="flex-row items-center bg-brand-primary/10 px-2 py-1 rounded-md">
-                    <Ionicons name="star" size={14} color="#CB9C5E" />
-                    <Text className="text-brand-primary text-sm font-semibold ml-1">
-                      {item.average_rating.toFixed(1)}
-                    </Text>
-                  </View>
-                )}
-                
-                {item.distanceKm && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="navigate" size={14} color="#A1A1AA" />
-                    <Text className="text-secondary-light text-xs ml-1">
-                      {item.distanceKm.toFixed(1)} km
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-        </ModernCard>
-      )}
-    </Pressable>
-  );
+
 
   // Navigate to booking details
   const handleBookingPress = (bookingId: string) => {
@@ -381,16 +245,9 @@ export default function CustomerHomeScreen() {
         </View>
       </View>
 
-      <View className="px-6">
-        {/* Location Status */}
-        <ModernCard delay={400} className="mb-6">
-          <Text className="text-secondary-light text-center">
-            📍 {locationStatus}
-          </Text>
-        </ModernCard>
-
-        {/* Nearby Shops Section */}
-        <View className="flex-row justify-between items-center mb-4">
+      {/* Nearby Shops Section Header */}
+      <View className="px-6 mb-4">
+        <View className="flex-row justify-between items-center">
           <Text className="text-primary-light text-3xl font-semibold">
             Nearby Shops
           </Text>
@@ -408,30 +265,14 @@ export default function CustomerHomeScreen() {
             )}
           </Pressable>
         </View>
+      </View>
 
-        {/* Shops List */}
-        {loading ? (
-          <View className="items-center py-12">
-            <ActivityIndicator size="large" color="#CB9C5E" />
-            <Text className="text-secondary-light mt-4">
-              Loading shops...
-            </Text>
-          </View>
-        ) : shops.length === 0 ? (
-          <ModernCard>
-            <Text className="text-secondary-light text-center">
-              No shops found nearby. Try enabling location services or check back later.
-            </Text>
-          </ModernCard>
-        ) : (
-          <FlatList
-            data={shops}
-            renderItem={renderShopItem}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
+      {/* Nearby Shops List */}
+      <View style={{ flex: 1, minHeight: 600 }}>
+        <NearbyShopsList
+          refreshTrigger={shopsRefreshTrigger}
+          onShopPress={handleShopPress}
+        />
       </View>
     </ScrollView>
   );

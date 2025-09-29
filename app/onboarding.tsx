@@ -1,26 +1,25 @@
-import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Dimensions,
-  Image,
-  TouchableOpacity,
-  StatusBar,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSpring,
-  runOnJS,
-} from 'react-native-reanimated';
-import PagerView from 'react-native-pager-view';
-import { router } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import React, { useRef, useState } from 'react';
+import {
+    Dimensions,
+    FlatList,
+    Image,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+// PagerView temporarily removed - using FlatList instead
+import Animated, {
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming
+} from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 
@@ -89,7 +88,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ userType }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const [showRoleSelection, setShowRoleSelection] = useState(!userType);
   
-  const pagerRef = useRef<PagerView>(null);
+  const pagerRef = useRef<any>(null);
   const fadeAnim = useSharedValue(1);
   const scaleAnim = useSharedValue(1);
 
@@ -204,13 +203,18 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ userType }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <Animated.View style={[styles.container, animatedContainerStyle]}>
-        <PagerView
+        <FlatList
           ref={pagerRef}
-          style={styles.pagerView}
-          initialPage={0}
-          onPageSelected={handlePageSelected}
-        >
-          {data.map((item, index) => (
+          data={data}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id.toString()}
+          onMomentumScrollEnd={(e) => {
+            const index = Math.round(e.nativeEvent.contentOffset.x / width);
+            setCurrentPage(index);
+          }}
+          renderItem={({ item, index }) => (
             <View key={item.id} style={styles.slide}>
               <LinearGradient
                 colors={item.gradient}
@@ -283,8 +287,8 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ userType }) => {
                 </View>
               </LinearGradient>
             </View>
-          ))}
-        </PagerView>
+          )}
+        />
       </Animated.View>
     </SafeAreaView>
   );

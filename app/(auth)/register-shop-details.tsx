@@ -1,276 +1,573 @@
-import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
-import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { ModernCard } from '../../src/components/ModernCard';
-import { supabase } from '../../src/lib/supabase';
-import { useAuthStore } from '../../src/store/authStore';
-import { getCurrentUserLocation, requestLocationPermissions } from '../../src/utils/location';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    Dimensions,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
-export default function RegisterShopDetailsScreen() {
-  const [shopName, setShopName] = useState('');
-  const [address, setAddress] = useState('');
-  const [description, setDescription] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [instagramHandle, setInstagramHandle] = useState('');
-  const [facebookHandle, setFacebookHandle] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [latitude, setLatitude] = useState('');
-  const [longitude, setLongitude] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
-  
+import { barberRegistrationService, RegistrationStep } from '../../src/services/barberRegistrationService';
+import { useAuthStore } from '../../src/store/authStore';
+
+const { width } = Dimensions.get('window');
+
+export default function BarberRegistration() {
+  const [steps, setSteps] = useState<RegistrationStep[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuthStore();
 
-  const handleAutoDetectLocation = async () => {
-    setLocationLoading(true);
-    
-    try {
-      const permissions = await requestLocationPermissions();
-      
-      if (permissions?.status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to auto-detect your shop location');
-        return;
-      }
+  useEffect(() => {
+    initializeRegistration();
+  }, []);
 
-      const location = await getCurrentUserLocation();
+  const initializeRegistration = async () => {
+    try {
+      setLoading(true);
+      const registrationSteps = barberRegistrationService.getRegistrationSteps();
+      setSteps(registrationSteps);
       
-      if (location) {
-        setLatitude(location.latitude.toString());
-        setLongitude(location.longitude.toString());
-        Alert.alert('Success', `Location detected: ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`);
-      } else {
-        Alert.alert('Error', 'Could not detect location. Please enter manually.');
+      // Load any saved progress
+      if (user?.id) {
+        // Check for saved progress and update step completion status
+        // This would load from the database in a real implementation
       }
     } catch (error) {
-      console.error('Location detection error:', error);
-      Alert.alert('Error', 'Failed to detect location. Please enter manually.');
-    } finally {
-      setLocationLoading(false);
-    }
-  };
-
-  const handleSubmitShop = async () => {
-    // Validation
-    if (!shopName || !address || !latitude || !longitude) {
-      Alert.alert('Error', 'Please fill in shop name, address, and location coordinates');
-      return;
-    }
-
-    const lat = parseFloat(latitude);
-    const lng = parseFloat(longitude);
-    
-    if (isNaN(lat) || isNaN(lng)) {
-      Alert.alert('Error', 'Please enter valid latitude and longitude coordinates');
-      return;
-    }
-
-    if (!user) {
-      Alert.alert('Error', 'User not found. Please login again.');
-      return;
-    }
-
-    setLoading(true);
-    
-    try {
-      // Create shop
-      const { data: shopData, error: shopError } = await supabase
-        .from('shops')
-        .insert({
-          name: shopName.trim(),
-          address: address.trim(),
-          description: description.trim() || null,
-          owner_id: user.id,
-          latitude: lat,
-          longitude: lng,
-          phone_number: phoneNumber.trim() || null,
-          social_instagram: instagramHandle.trim() || null,
-          social_facebook: facebookHandle.trim() || null,
-          image_url: imageUrl.trim() || null,
-          average_rating: null,
-        })
-        .select()
-        .single();
-
-      if (shopError) {
-        Alert.alert('Shop Creation Error', shopError.message);
-        console.error('Shop creation error:', shopError);
-        return;
-      }
-
-      // Update user profile with shop_id
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ shop_id: shopData.id })
-        .eq('id', user.id);
-
-      if (updateError) {
-        Alert.alert('Profile Update Error', 'Shop created but failed to link to profile');
-        console.error('Profile update error:', updateError);
-        return;
-      }
-
-      Alert.alert('Success', 'Shop registered successfully!');
-      router.replace('/(shopkeeper)/dashboard');
-    } catch (error) {
-      console.error('Shop registration error:', error);
-      Alert.alert('Error', 'An unexpected error occurred');
+      console.error('Error initializing registration:', error);
+      Alert.alert('Error', 'Failed to load registration steps. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const renderInput = (
-    placeholder: string,
-    value: string,
-    onChangeText: (text: string) => void,
-    fieldName: string,
-    keyboardType: any = 'default',
-    multiline = false
-  ) => (
+  const handleStepPress = (index: number) => {
+    const step = steps[index];
+    
+    // Check if this step can be accessed
+    if (index > 0) {
+      const previousStep = steps[index - 1];
+      if (previousStep.isRequired && !previousStep.isCompleted) {
+        Alert.alert(
+          'Complete Previous Step',
+          `Please complete "${previousStep.title}" before proceeding.`
+        );
+        return;
+      }
+    }
+
+    setCurrentStepIndex(index);
+    navigateToStep(step);
+  };
+
+  const navigateToStep = (step: RegistrationStep) => {
+    switch (step.id) {
+      case 'personal_info':
+        Alert.alert('Coming Soon', 'Personal info step will be implemented next');
+        break;
+      case 'shop_details':
+        Alert.alert('Coming Soon', 'Shop details step will be implemented next');
+        break;
+      case 'location':
+        Alert.alert('Coming Soon', 'Location step will be implemented next');
+        break;
+      case 'business_info':
+        Alert.alert('Coming Soon', 'Business info step will be implemented next');
+        break;
+      case 'services':
+        Alert.alert('Coming Soon', 'Services step will be implemented next');
+        break;
+      case 'hours':
+        Alert.alert('Coming Soon', 'Hours step will be implemented next');
+        break;
+      case 'media':
+        Alert.alert('Coming Soon', 'Media step will be implemented next');
+        break;
+      case 'review':
+        Alert.alert('Coming Soon', 'Review step will be implemented next');
+        break;
+      default:
+        console.warn('Unknown step:', step.id);
+    }
+  };
+
+  const getProgressPercentage = () => {
+    const completedSteps = steps.filter(step => step.isCompleted).length;
+    return (completedSteps / steps.length) * 100;
+  };
+
+  const renderProgressBar = () => (
     <MotiView
-      animate={{
-        borderColor: focusedField === fieldName ? '#827092' : '#52525B',
-      }}
-      >
-      <TextInput
-        placeholder={placeholder}
-        placeholderTextColor="#A1A1AA"
-        value={value}
-        onChangeText={onChangeText}
-        onFocus={() => setFocusedField(fieldName)}
-        onBlur={() => setFocusedField(null)}
-        keyboardType={keyboardType}
-        autoCapitalize="words"
-        autoCorrect={false}
-        multiline={multiline}
-        numberOfLines={multiline ? 3 : 1}
-        textAlignVertical={multiline ? 'top' : 'center'}
-        className={`bg-dark-background/50 p-4 rounded-xl text-primary-light border border-dark-border ${
-          multiline ? 'h-20' : ''
-        }`}
-      />
+      from={{ opacity: 0, translateY: -20 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ duration: 600 }}
+      style={styles.progressContainer}
+    >
+      <BlurView intensity={20} style={styles.progressBlur}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressTitle}>Registration Progress</Text>
+          <Text style={styles.progressPercentage}>
+            {Math.round(getProgressPercentage())}%
+          </Text>
+        </View>
+        
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBarBackground}>
+            <MotiView
+              from={{ width: 0 }}
+              animate={{ width: `${getProgressPercentage()}%` }}
+              transition={{ duration: 800, delay: 200 }}
+              style={styles.progressBarFill}
+            />
+          </View>
+        </View>
+        
+        <Text style={styles.progressSubtitle}>
+          {steps.filter(step => step.isCompleted).length} of {steps.length} steps completed
+        </Text>
+      </BlurView>
     </MotiView>
   );
 
-  return (
-    <ScrollView 
-      className="flex-1 bg-dark-background"
-      contentContainerStyle={{ 
-        flexGrow: 1, 
-        paddingHorizontal: 24,
-        paddingVertical: 40,
-      }}
-      showsVerticalScrollIndicator={false}
-    >
+  const renderStepItem = (step: RegistrationStep, index: number) => {
+    const isAccessible = index === 0 || !steps[index - 1]?.isRequired || steps[index - 1]?.isCompleted;
+    const isCurrent = index === currentStepIndex;
+    
+    return (
       <MotiView
-        from={{ opacity: 0, translateY: -30 }}
-        animate={{ opacity: 1, translateY: 0 }}
-        className="mb-8"
+        key={step.id}
+        from={{ opacity: 0, translateX: -50 }}
+        animate={{ opacity: 1, translateX: 0 }}
+        transition={{ duration: 500, delay: index * 100 }}
+        style={styles.stepContainer}
       >
-        <Text className="text-primary-light text-4xl font-bold text-center">
-          Register Your Shop
-        </Text>
-        <Text className="text-secondary-light text-lg text-center mt-2">
-          Tell us about your business!
-        </Text>
-      </MotiView>
-
-      <View className="space-y-6">
-        {/* Basic Shop Info */}
-        <ModernCard delay={200}>
-          <Text className="text-primary-light text-xl font-bold mb-4">
-            Basic Information
-          </Text>
-          <View className="space-y-3">
-            {renderInput('Shop Name', shopName, setShopName, 'shopName')}
-            {renderInput('Address', address, setAddress, 'address')}
-            {renderInput('Description (Optional)', description, setDescription, 'description', 'default', true)}
-            {renderInput('Image URL (Optional)', imageUrl, setImageUrl, 'imageUrl')}
-          </View>
-        </ModernCard>
-
-        {/* Contact Information */}
-        <ModernCard delay={300}>
-          <Text className="text-primary-light text-xl font-bold mb-4">
-            Contact Information
-          </Text>
-          <View className="space-y-3">
-            {renderInput('Phone Number', phoneNumber, setPhoneNumber, 'phoneNumber', 'phone-pad')}
-            {renderInput('Instagram Handle (Optional)', instagramHandle, setInstagramHandle, 'instagram')}
-            {renderInput('Facebook Handle (Optional)', facebookHandle, setFacebookHandle, 'facebook')}
-          </View>
-        </ModernCard>
-
-        {/* Location */}
-        <ModernCard delay={400}>
-          <Text className="text-primary-light text-xl font-bold mb-4">
-            Shop Location
-          </Text>
-          
-          <Pressable
-            onPress={handleAutoDetectLocation}
-            disabled={locationLoading}
-            className="mb-4"
-          >
-            {({ pressed }) => (
-              <MotiView
-                animate={{
-                  scale: pressed ? 0.96 : 1,
-                }}
-                className="bg-brand-secondary py-3 px-4 rounded-xl items-center"
-              >
-                {locationLoading ? (
-                  <ActivityIndicator color="#F3F4F6" />
-                ) : (
-                  <Text className="text-primary-light text-base font-semibold">
-                    📍 Auto-Detect My Location
-                  </Text>
-                )}
-              </MotiView>
-            )}
-          </Pressable>
-
-          {latitude && longitude && (
-            <View className="mb-4 p-3 bg-brand-primary/20 rounded-lg">
-              <Text className="text-secondary-light text-sm text-center">
-                Detected: {parseFloat(latitude).toFixed(4)}, {parseFloat(longitude).toFixed(4)}
-              </Text>
-            </View>
-          )}
-
-          <View className="space-y-3">
-            {renderInput('Latitude', latitude, setLatitude, 'latitude', 'numeric')}
-            {renderInput('Longitude', longitude, setLongitude, 'longitude', 'numeric')}
-          </View>
-        </ModernCard>
-
-        {/* Submit Button */}
-        <Pressable
-          onPress={handleSubmitShop}
-          disabled={loading}
-          className="w-full"
+        <TouchableOpacity
+          style={[
+            styles.stepCard,
+            step.isCompleted && styles.stepCardCompleted,
+            isCurrent && styles.stepCardCurrent,
+            !isAccessible && styles.stepCardDisabled,
+          ]}
+          onPress={() => isAccessible && handleStepPress(index)}
+          disabled={!isAccessible}
+          activeOpacity={0.8}
         >
-          {({ pressed }) => (
-            <MotiView
-              animate={{
-                scale: pressed ? 0.96 : 1,
-              }}
-              className="bg-status-completed py-5 rounded-2xl shadow-xl items-center"
-            >
-              {loading ? (
-                <ActivityIndicator color="#F3F4F6" />
-              ) : (
-                <Text className="text-primary-light text-2xl font-bold">
-                  Submit Shop Details
-                </Text>
-              )}
-            </MotiView>
-          )}
-        </Pressable>
-      </View>
-    </ScrollView>
+          <LinearGradient
+            colors={
+              step.isCompleted
+                ? ['#10B981', '#059669']
+                : isCurrent
+                ? ['#4facfe', '#00f2fe']
+                : isAccessible
+                ? ['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']
+                : ['rgba(100, 100, 100, 0.1)', 'rgba(100, 100, 100, 0.05)']
+            }
+            style={styles.stepGradient}
+          >
+            <View style={styles.stepContent}>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepIconContainer}>
+                  <View style={[
+                    styles.stepIcon,
+                    step.isCompleted && styles.stepIconCompleted,
+                    isCurrent && styles.stepIconCurrent,
+                    !isAccessible && styles.stepIconDisabled,
+                  ]}>
+                    {step.isCompleted ? (
+                      <Ionicons name="checkmark" size={20} color="white" />
+                    ) : (
+                      <Text style={[
+                        styles.stepNumber,
+                        isCurrent && styles.stepNumberCurrent,
+                        !isAccessible && styles.stepNumberDisabled,
+                      ]}>
+                        {index + 1}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                
+                <View style={styles.stepInfo}>
+                  <Text style={[
+                    styles.stepTitle,
+                    !isAccessible && styles.stepTitleDisabled,
+                  ]}>
+                    {step.title}
+                  </Text>
+                  <Text style={[
+                    styles.stepDescription,
+                    !isAccessible && styles.stepDescriptionDisabled,
+                  ]}>
+                    {step.description}
+                  </Text>
+                </View>
+                
+                <View style={styles.stepAction}>
+                  {step.isRequired && (
+                    <View style={styles.requiredBadge}>
+                      <Text style={styles.requiredText}>Required</Text>
+                    </View>
+                  )}
+                  
+                  <Ionicons
+                    name={step.isCompleted ? "checkmark-circle" : "chevron-forward"}
+                    size={24}
+                    color={
+                      step.isCompleted
+                        ? "#10B981"
+                        : !isAccessible
+                        ? "#666"
+                        : "#4facfe"
+                    }
+                  />
+                </View>
+              </View>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      </MotiView>
+    );
+  };
+
+  const renderWelcomeHeader = () => (
+    <MotiView
+      from={{ opacity: 0, translateY: -30 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ duration: 600 }}
+      style={styles.welcomeContainer}
+    >
+      <BlurView intensity={20} style={styles.welcomeBlur}>
+        <Text style={styles.welcomeTitle}>Welcome to FadeUp!</Text>
+        <Text style={styles.welcomeSubtitle}>
+          Let's get your barbershop registered and ready to serve customers.
+        </Text>
+        <Text style={styles.welcomeDescription}>
+          Complete the registration steps below to start accepting bookings and managing your queue.
+        </Text>
+      </BlurView>
+    </MotiView>
+  );
+
+  const renderActionButtons = () => (
+    <MotiView
+      from={{ opacity: 0, translateY: 50 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ duration: 600, delay: 300 }}
+      style={styles.actionContainer}
+    >
+      <TouchableOpacity
+        style={styles.helpButton}
+        onPress={() => Alert.alert(
+          'Need Help?',
+          'Contact our support team at support@fadeup.com or call +1 (555) 123-4567'
+        )}
+      >
+        <Ionicons name="help-circle-outline" size={20} color="#4facfe" />
+        <Text style={styles.helpButtonText}>Need Help?</Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={styles.startButton}
+        onPress={() => {
+          const firstIncompleteStep = steps.find(step => !step.isCompleted);
+          if (firstIncompleteStep) {
+            const index = steps.indexOf(firstIncompleteStep);
+            handleStepPress(index);
+          }
+        }}
+      >
+        <LinearGradient
+          colors={['#4facfe', '#00f2fe']}
+          style={styles.startGradient}
+        >
+          <Text style={styles.startButtonText}>Continue Registration</Text>
+          <Ionicons name="arrow-forward" size={20} color="white" />
+        </LinearGradient>
+      </TouchableOpacity>
+    </MotiView>
+  );
+
+  if (loading) {
+    return (
+      <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading registration...</Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
+
+  return (
+    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderWelcomeHeader()}
+          {renderProgressBar()}
+          
+          <View style={styles.stepsContainer}>
+            {steps.map((step, index) => renderStepItem(step, index))}
+          </View>
+          
+          {renderActionButtons()}
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 30,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  welcomeContainer: {
+    margin: 20,
+    marginBottom: 15,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  welcomeBlur: {
+    padding: 24,
+  },
+  welcomeTitle: {
+    color: 'white',
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  welcomeSubtitle: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  welcomeDescription: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  progressContainer: {
+    margin: 20,
+    marginTop: 10,
+    marginBottom: 15,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  progressBlur: {
+    padding: 20,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  progressTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  progressPercentage: {
+    color: '#4facfe',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  progressBarContainer: {
+    marginBottom: 8,
+  },
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#4facfe',
+    borderRadius: 4,
+  },
+  progressSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  stepsContainer: {
+    paddingHorizontal: 20,
+  },
+  stepContainer: {
+    marginBottom: 16,
+  },
+  stepCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  stepCardCompleted: {
+    borderColor: '#10B981',
+  },
+  stepCardCurrent: {
+    borderColor: '#4facfe',
+    borderWidth: 2,
+  },
+  stepCardDisabled: {
+    opacity: 0.5,
+  },
+  stepGradient: {
+    flex: 1,
+  },
+  stepContent: {
+    padding: 20,
+  },
+  stepHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stepIconContainer: {
+    marginRight: 16,
+  },
+  stepIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  stepIconCompleted: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  stepIconCurrent: {
+    backgroundColor: '#4facfe',
+    borderColor: '#4facfe',
+  },
+  stepIconDisabled: {
+    backgroundColor: 'rgba(100, 100, 100, 0.2)',
+    borderColor: 'rgba(100, 100, 100, 0.3)',
+  },
+  stepNumber: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  stepNumberCurrent: {
+    color: 'white',
+  },
+  stepNumberDisabled: {
+    color: '#666',
+  },
+  stepInfo: {
+    flex: 1,
+  },
+  stepTitle: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  stepTitleDisabled: {
+    color: '#999',
+  },
+  stepDescription: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+  },
+  stepDescriptionDisabled: {
+    color: '#666',
+  },
+  stepAction: {
+    alignItems: 'flex-end',
+  },
+  requiredBadge: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  requiredText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  actionContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  helpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  helpButtonText: {
+    color: '#4facfe',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  startButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  startGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  startButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
+});
 
