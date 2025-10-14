@@ -221,6 +221,25 @@ export class LocationService {
   }
 
   /**
+   * Geocode an address to get coordinates
+   */
+  async geocodeAddress(address: string): Promise<LocationCoords | null> {
+    try {
+      const geocoded = await Location.geocodeAsync(address);
+      
+      if (geocoded && geocoded.length > 0) {
+        const { latitude, longitude } = geocoded[0];
+        return { latitude, longitude };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error geocoding address:', error);
+      return null;
+    }
+  }
+
+  /**
    * Clear cached location
    */
   clearLocationCache(): void {

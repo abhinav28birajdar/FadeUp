@@ -5,7 +5,6 @@ import { router } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
     Dimensions,
-    FlatList,
     Image,
     StatusBar,
     StyleSheet,
@@ -13,7 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-// PagerView temporarily removed - using FlatList instead
+import PagerView from 'react-native-pager-view';
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
@@ -88,7 +87,7 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ userType }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const [showRoleSelection, setShowRoleSelection] = useState(!userType);
   
-  const pagerRef = useRef<any>(null);
+  const pagerRef = useRef<PagerView>(null);
   const fadeAnim = useSharedValue(1);
   const scaleAnim = useSharedValue(1);
 
@@ -203,18 +202,13 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ userType }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <Animated.View style={[styles.container, animatedContainerStyle]}>
-        <FlatList
+        <PagerView
           ref={pagerRef}
-          data={data}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id.toString()}
-          onMomentumScrollEnd={(e) => {
-            const index = Math.round(e.nativeEvent.contentOffset.x / width);
-            setCurrentPage(index);
-          }}
-          renderItem={({ item, index }) => (
+          style={styles.pagerView}
+          initialPage={0}
+          onPageSelected={(e: { nativeEvent: { position: number } }) => setCurrentPage(e.nativeEvent.position)}
+        >
+          {data.map((item, index) => (
             <View key={item.id} style={styles.slide}>
               <LinearGradient
                 colors={item.gradient}
@@ -287,8 +281,8 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ userType }) => {
                 </View>
               </LinearGradient>
             </View>
-          )}
-        />
+          ))}
+        </PagerView>
       </Animated.View>
     </SafeAreaView>
   );

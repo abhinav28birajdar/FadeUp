@@ -3,6 +3,7 @@ import 'dotenv/config';
 import type { ExpoConfig } from '@expo/config-types';
 
 const config: ExpoConfig = {
+  sdkVersion: '54.0.0',
   name: 'FadeUp',
   slug: 'fadeup-barber-booking',
   version: '1.0.0',
