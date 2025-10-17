@@ -2,8 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MotiView } from 'moti';
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { useRenderTracker } from '../utils/performance';
 import { calculateQueuePositionTime } from '../utils/queueUtils';
 import { ModernCard } from './ModernCard';
 
@@ -44,6 +45,9 @@ const QueueItem = memo(({
   actionLoading,
   shopQueue
 }: QueueItemProps) => {
+  // Track renders in development mode
+  useRenderTracker('QueueItem');
+  
   const statusColors = getStatusColor(item.status);
   const waitTime = calculateQueuePositionTime(item.position, shopQueue);
   
@@ -59,10 +63,11 @@ const QueueItem = memo(({
   // Estimate service duration
   const serviceDuration = item.services.reduce((total, service) => total + (service.duration || 30), 0);
 
-  const handleStatusUpdate = (newStatus: string) => {
+  // Memoize the status update handler
+  const handleStatusUpdate = useCallback((newStatus: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onUpdateStatus(item.id, newStatus);
-  };
+  }, [item.id, onUpdateStatus]);
 
   return (
     <MotiView
@@ -208,12 +213,30 @@ const QueueItem = memo(({
   );
 }, (prevProps, nextProps) => {
   // Only re-render if these props changed
-  return (
-    prevProps.item.status === nextProps.item.status &&
-    prevProps.actionLoading === nextProps.actionLoading &&
-    prevProps.item.position === nextProps.item.position &&
-    JSON.stringify(prevProps.item.services) === JSON.stringify(nextProps.item.services)
-  );
+  const statusUnchanged = prevProps.item.status === nextProps.item.status;
+  const loadingUnchanged = prevProps.actionLoading === nextProps.actionLoading;
+  const positionUnchanged = prevProps.item.position === nextProps.item.position;
+  
+  // Deep compare services efficiently
+  const servicesUnchanged = 
+    prevProps.item.services.length === nextProps.item.services.length &&
+    prevProps.item.services.every((service, index) => {
+      const nextService = nextProps.item.services[index];
+      return (
+        service.name === nextService.name &&
+        service.price === nextService.price &&
+        service.duration === nextService.duration
+      );
+    });
+  
+  const shouldSkipRender = statusUnchanged && loadingUnchanged && positionUnchanged && servicesUnchanged;
+  
+  // Log skipped renders in dev mode
+  if (__DEV__ && shouldSkipRender) {
+    console.debug(`QueueItem ${prevProps.item.id} - Skipped unnecessary render`);
+  }
+  
+  return shouldSkipRender;
 });
 
 export default QueueItem;

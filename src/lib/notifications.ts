@@ -1,9 +1,10 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 // Using EventSubscription instead of Subscription
-import { EventSubscription } from 'expo-modules-core';
+import { Subscription } from 'expo-modules-core';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { logger } from '../utils/logger';
 import { supabase } from './supabase';
 
 // Configure notification handler for how notifications should appear to users
@@ -79,9 +80,9 @@ export async function setupNotificationCategories(): Promise<void> {
       },
     ]);
 
-    console.log('Notification categories configured');
+  logger.info('Notification categories configured');
   } catch (error) {
-    console.error('Failed to configure notification categories:', error);
+  logger.error('Failed to configure notification categories:', error);
   }
 }
 
@@ -93,7 +94,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     // Check if device is physical (not simulator/emulator)
     // This prevents errors on simulators that don't support push notifications
     if (!Device.isDevice) {
-      console.log('Push notifications are not available on simulator/emulator');
+  logger.warn('Push notifications are not available on simulator/emulator');
       return null;
     }
 
@@ -140,7 +141,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     }
     
     if (finalStatus !== 'granted') {
-      console.log('Failed to get push token for push notification!');
+      logger.warn('Failed to get push token for push notification!');
       return null;
     }
     
@@ -149,11 +150,11 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       projectId: Constants.expoConfig?.extra?.eas?.projectId,
     });
     
-    console.log('Expo Push Token:', expoPushToken.data);
+  logger.debug('Expo Push Token:', expoPushToken.data);
     
     return expoPushToken.data;
   } catch (error) {
-    console.error('Error getting push notification token:', error);
+  logger.error('Error getting push notification token:', error);
     return null;
   }
 }
@@ -175,7 +176,7 @@ export async function updatePushToken(userId: string): Promise<boolean> {
       .eq('id', userId);
     
     if (error) {
-      console.error('Error updating push token in database:', error);
+      logger.error('Error updating push token in database:', error);
       return false;
     }
     
@@ -193,12 +194,12 @@ export function setupNotificationListeners(
   onNotificationReceived?: (notification: Notifications.Notification) => void,
   onNotificationResponseReceived?: (response: Notifications.NotificationResponse) => void
 ): { unsubscribe: () => void } {
-  let notificationListener: EventSubscription | undefined;
-  let responseListener: EventSubscription | undefined;
+  let notificationListener: Subscription | undefined;
+  let responseListener: Subscription | undefined;
   
   // Notification received while app is foregrounded
   notificationListener = Notifications.addNotificationReceivedListener(notification => {
-    console.log('Notification received in foreground:', notification);
+    logger.debug('Notification received in foreground:', notification);
     if (onNotificationReceived) {
       onNotificationReceived(notification);
     }
@@ -206,7 +207,7 @@ export function setupNotificationListeners(
   
   // User interacted with a notification
   responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-    console.log('Notification response received:', response);
+    logger.debug('Notification response received:', response);
     
     const { actionIdentifier, notification } = response;
     
@@ -214,15 +215,15 @@ export function setupNotificationListeners(
     switch (actionIdentifier) {
       case NOTIFICATION_ACTIONS.VIEW_BOOKING:
         // Navigate to booking details screen
-        console.log('User wants to view booking:', notification.request.content.data);
+        logger.info('User wants to view booking:', notification.request.content.data);
         break;
       case NOTIFICATION_ACTIONS.VIEW_QUEUE:
         // Navigate to queue screen
-        console.log('User wants to view queue:', notification.request.content.data);
+        logger.info('User wants to view queue:', notification.request.content.data);
         break;
       case NOTIFICATION_ACTIONS.LEAVE_FEEDBACK:
         // Navigate to feedback form
-        console.log('User wants to leave feedback:', notification.request.content.data);
+        logger.info('User wants to leave feedback:', notification.request.content.data);
         break;
     }
     
@@ -356,8 +357,8 @@ export async function sendPushNotification(
       body: JSON.stringify(message),
     });
 
-    const result = await response.json();
-    console.log('Push notification sent:', result);
+  const result = await response.json();
+  logger.debug('Push notification sent:', result);
     
     // Store notification in database for history
     // Ideally this would be done server-side
@@ -373,10 +374,10 @@ export async function sendPushNotification(
     ]);
     
     if (error) {
-      console.error('Error storing notification in database:', error);
+      logger.error('Error storing notification in database:', error);
     }
   } catch (error) {
-    console.error('Error sending push notification:', error);
+    logger.error('Error sending push notification:', error);
   }
 }
 

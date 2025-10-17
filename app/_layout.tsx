@@ -7,9 +7,11 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
+import AppProvider from '@/src/components/AppProvider';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { supabase } from '@/src/lib/supabase';
 import { useAuthStore } from '@/src/store/authStore';
+import { logger } from '@/src/utils/logger';
 
 import '../global.css';
 
@@ -45,6 +47,7 @@ export default function RootLayout() {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      logger.debug('Auth state changed', { event: _event });
       if (session) {
         await handleAuthSession(session);
       } else {
@@ -76,7 +79,7 @@ export default function RootLayout() {
         setRole(userProfile.role);
       }
     } catch (error) {
-      console.error('Error handling auth session:', error);
+      logger.error('Error handling auth session:', error);
       await supabase.auth.signOut();
       clearAuth();
     } finally {
@@ -107,12 +110,13 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <LinearGradient
-        colors={['#121212', '#1a1a1a']}
-        style={{ flex: 1 }}
-      >
-        <ThemeProvider value={DarkTheme}>
-          <Stack
+      <AppProvider>
+        <LinearGradient
+          colors={['#121212', '#1a1a1a']}
+          style={{ flex: 1 }}
+        >
+          <ThemeProvider value={DarkTheme}>
+            <Stack
             screenOptions={{
               headerShown: false,
               animation: 'slide_from_right',
@@ -138,8 +142,9 @@ export default function RootLayout() {
             )}
           </Stack>
           <StatusBar style="light" />
-        </ThemeProvider>
-      </LinearGradient>
+          </ThemeProvider>
+        </LinearGradient>
+      </AppProvider>
     </ErrorBoundary>
   );
 }

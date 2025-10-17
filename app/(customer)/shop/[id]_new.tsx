@@ -135,7 +135,7 @@ const ServiceCard = memo(({ service, onBook, index }: any) => (
     from={{ opacity: 0, translateX: -20 }}
     animate={{ opacity: 1, translateX: 0 }}
     transition={{ 
-      timing: { duration: 500 },
+      duration: 500,
       delay: 400 + index * 100 
     }}
     className="mb-3"
@@ -249,7 +249,8 @@ const ShopDetailScreen = () => {
         setUserLocation(location);
       }
     } catch (error) {
-      console.log('Error getting location:', error);
+      const { logger } = await import('../../../src/utils/logger');
+      logger.error('Error getting location:', error);
     }
   };
 

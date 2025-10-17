@@ -1,12 +1,13 @@
 import * as Location from 'expo-location';
+import { logger } from '../utils/logger';
 
 export async function requestLocationPermissions(): Promise<Location.LocationPermissionResponse | null> {
   try {
     const permissions = await Location.requestForegroundPermissionsAsync();
-    console.log('Location permissions:', permissions);
+  logger.debug('Location permissions:', permissions);
     return permissions;
   } catch (error) {
-    console.error('Error requesting location permissions:', error);
+  logger.error('Error requesting location permissions:', error);
     return null;
   }
 }
@@ -17,7 +18,7 @@ export async function getCurrentUserLocation(): Promise<{latitude: number, longi
     const { status } = await Location.getForegroundPermissionsAsync();
     
     if (status !== 'granted') {
-      console.log('Location permissions not granted');
+  logger.warn('Location permissions not granted');
       return null;
     }
 
@@ -28,10 +29,10 @@ export async function getCurrentUserLocation(): Promise<{latitude: number, longi
 
     const { latitude, longitude } = locationResult.coords;
     
-    console.log('Current location:', { latitude, longitude });
+  logger.debug('Current location:', { latitude, longitude });
     return { latitude, longitude };
   } catch (error) {
-    console.error('Error getting current location:', error);
+  logger.error('Error getting current location:', error);
     return null;
   }
 }
@@ -42,10 +43,10 @@ export async function geocodeAddress(address: string): Promise<{latitude: number
     
     if (geocodeResult && geocodeResult.length > 0) {
       const { latitude, longitude } = geocodeResult[0];
-      console.log('Geocoded location for address:', address, { latitude, longitude });
+      logger.debug('Geocoded location for address:', address, { latitude, longitude });
       return { latitude, longitude };
     } else {
-      console.log('No geocode results found for address:', address);
+      logger.warn('No geocode results found for address:', address);
       return null;
     }
   } catch (error) {
@@ -59,14 +60,14 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
     const addressResult = await Location.reverseGeocodeAsync({ latitude, longitude });
     
     if (addressResult && addressResult.length > 0) {
-      console.log('Reverse geocoded address for coordinates:', { latitude, longitude }, addressResult);
+      logger.debug('Reverse geocoded address for coordinates:', { latitude, longitude }, addressResult);
       return addressResult;
     } else {
-      console.log('No address found for coordinates:', { latitude, longitude });
+      logger.warn('No address found for coordinates:', { latitude, longitude });
       return null;
     }
   } catch (error) {
-    console.error('Error reverse geocoding coordinates:', { latitude, longitude }, error);
+  logger.error('Error reverse geocoding coordinates:', { latitude, longitude }, error);
     return null;
   }
 }

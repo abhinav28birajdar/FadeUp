@@ -22,8 +22,17 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
+  async componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Import logger dynamically to avoid circular dependencies
+    const { logger } = await import('../utils/logger');
+    logger.error('Error caught by boundary:', error, errorInfo);
+    
+    // Track error in analytics if available
+    if (global.__FADE_UP_ANALYTICS__?.trackError) {
+      global.__FADE_UP_ANALYTICS__.trackError('ErrorBoundary', error, {
+        componentStack: errorInfo.componentStack
+      });
+    }
   }
 
   handleReset = () => {

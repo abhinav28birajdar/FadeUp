@@ -89,7 +89,7 @@ export default function QueueScreen() {
     const processQueueUpdate = async (queueData: any[]) => {
       try {
         const queueEntries: QueueItemDisplay[] = [];
-        let myPosition = null;
+        let myPosition: number | null = null;
         
         // Process each queue entry
         for (const queueItem of queueData) {
@@ -145,7 +145,7 @@ export default function QueueScreen() {
         // Calculate how many people are ahead in the queue
         if (myPosition !== null) {
           const ahead = queueEntries.filter(entry => 
-            entry.position < myPosition && entry.status === "waiting"
+            entry.position < myPosition! && entry.status === "waiting"
           ).length;
           setQueueAhead(ahead);
         }

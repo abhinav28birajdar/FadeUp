@@ -81,17 +81,17 @@ export class QueueRealtimeManager {
             .in('status', ['waiting', 'ready_next', 'in_service'])
             .order('position', { ascending: true });
 
-          if (!error && data) {
+              if (!error && data) {
             // Transform and enrich the queue data
             const queueWithServices = await this.enrichQueueWithServices(data);
             callback(queueWithServices);
           } else {
-            console.error('Error fetching queue data:', error);
+                  logger.error('Error fetching queue data:', error);
           }
         }
       )
       .subscribe((status) => {
-        console.log(`Shop queue subscription status for ${shopId}:`, status);
+            logger.info(`Shop queue subscription status for ${shopId}:`, status);
       });
 
     this.subscriptions.set(subscriptionKey, subscription);
@@ -143,17 +143,17 @@ export class QueueRealtimeManager {
             .in('status', ['waiting', 'ready_next', 'in_service'])
             .order('created_at', { ascending: false });
 
-          if (!error && data) {
+              if (!error && data) {
             // Transform and enrich the queue data
             const queueWithServices = await this.enrichQueueWithServices(data);
             callback(queueWithServices);
           } else {
-            console.error('Error fetching customer queue data:', error);
+                  logger.error('Error fetching customer queue data:', error);
           }
         }
       )
       .subscribe((status) => {
-        console.log(`Customer queue subscription status for ${customerId}:`, status);
+            logger.info(`Customer queue subscription status for ${customerId}:`, status);
       });
 
     this.subscriptions.set(subscriptionKey, subscription);
@@ -242,7 +242,7 @@ export class QueueRealtimeManager {
       subscription.unsubscribe();
     });
     this.subscriptions.clear();
-    console.log('Unsubscribed from all queue channels');
+        logger.info('Unsubscribed from all queue channels');
   }
 }
 
@@ -269,7 +269,7 @@ export const subscribeToQueueUpdates = (
   shopId: string,
   onUpdate: QueueChangeHandler
 ): RealtimeChannel => {
-  console.log(`Subscribing to raw queue updates for shop: ${shopId}`);
+  logger.info(`Subscribing to raw queue updates for shop: ${shopId}`);
 
   const channel = supabase
     .channel(`queue_updates_${shopId}`)
@@ -282,12 +282,12 @@ export const subscribeToQueueUpdates = (
         filter: `shop_id=eq.${shopId}` 
       },
       (payload) => {
-        console.log('Real-time queue update received:', payload);
+        logger.debug('Real-time queue update received:', payload);
         onUpdate(payload);
       }
     )
     .subscribe((status) => {
-      console.log(`Queue subscription status for shop ${shopId}:`, status);
+      logger.info(`Queue subscription status for shop ${shopId}:`, status);
     });
 
   return channel;
@@ -308,7 +308,7 @@ export const subscribeToBookingUpdates = (
   const channelId = shopId ? `booking_updates_shop_${shopId}` : `booking_updates_user_${userId}`;
   const filter = shopId ? `shop_id=eq.${shopId}` : `customer_id=eq.${userId}`;
 
-  console.log(`Subscribing to booking updates with filter: ${filter}`);
+  logger.info(`Subscribing to booking updates with filter: ${filter}`);
 
   const channel = supabase
     .channel(channelId)
@@ -321,12 +321,12 @@ export const subscribeToBookingUpdates = (
         filter
       },
       (payload) => {
-        console.log('Real-time booking update received:', payload);
+        logger.debug('Real-time booking update received:', payload);
         if (onUpdate) onUpdate(payload);
       }
     )
     .subscribe((status) => {
-      console.log(`Booking subscription status: ${status}`);
+      logger.info(`Booking subscription status: ${status}`);
     });
 
   return channel;

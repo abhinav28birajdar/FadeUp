@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { ModernCard } from '../../src/components/ModernCard';
 import NearbyShopsList from '../../src/components/NearbyShopsList';
@@ -47,6 +47,9 @@ export default function CustomerHomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  // Memoize slider data for performance
+  const memoizedSliderData = useMemo(() => SLIDER_DATA, []);
+  
   // Fetch upcoming bookings on load
   useEffect(() => {
     fetchUpcomingBookings();
@@ -59,7 +62,7 @@ export default function CustomerHomeScreen() {
     setTimeout(() => setRefreshing(false), 1000);
   }, []);
 
-  const fetchUpcomingBookings = async () => {
+  const fetchUpcomingBookings = useCallback(async () => {
     if (!user?.id) return;
     
     setLoadingBookings(true);
@@ -77,27 +80,29 @@ export default function CustomerHomeScreen() {
         .limit(3);
         
       if (error) {
-        console.error('Error fetching bookings:', error);
+        const { logger } = await import('../../src/utils/logger');
+        logger.error('Error fetching bookings:', error);
         return;
       }
       
       setUpcomingBookings(bookings || []);
     } catch (error) {
-      console.error('Error in fetchUpcomingBookings:', error);
+      const { logger } = await import('../../src/utils/logger');
+      logger.error('Error in fetchUpcomingBookings:', error);
     } finally {
       setLoadingBookings(false);
     }
-  };
+  }, [user?.id]);
 
-  const handleShopPress = (shop: Shop) => {
+  const handleShopPress = useCallback((shop: Shop) => {
     router.push(`/(customer)/shop/${shop.id}`);
-  };
+  }, []);
 
-  const handleViewOnMap = () => {
+  const handleViewOnMap = useCallback(() => {
     router.push('/(customer)/explore-map');
-  };
+  }, []);
 
-  const renderSliderItem = ({ item, index }: { item: typeof SLIDER_DATA[0]; index: number }) => (
+  const renderSliderItem = useCallback(({ item, index }: { item: typeof SLIDER_DATA[0]; index: number }) => (
     <View className="w-screen px-6">
       <ModernCard className="h-48">
         <View className="flex-1 justify-center items-center">
@@ -115,14 +120,14 @@ export default function CustomerHomeScreen() {
         </View>
       </ModernCard>
     </View>
-  );
+  ), []);
 
 
 
   // Navigate to booking details
-  const handleBookingPress = (bookingId: string) => {
+  const handleBookingPress = useCallback((bookingId: string) => {
     router.push(`/(customer)/booking/confirmation?id=${bookingId}`);
-  };
+  }, []);
 
   return (
     <ScrollView 
@@ -218,7 +223,7 @@ export default function CustomerHomeScreen() {
       {/* Slider */}
       <View className="mb-8">
         <FlatList
-          data={SLIDER_DATA}
+          data={memoizedSliderData}
           renderItem={renderSliderItem}
           keyExtractor={(item) => item.id}
           horizontal
