@@ -1,15 +1,27 @@
 {
   "expo": {
-    "name": "FadeUp",
-    "slug": "FadeUp",
+    "name": "FadeUp - Barber Connect",
+    "slug": "fadeup-barber-connect",
     "version": "1.0.0",
+    "description": "Real-time barber queue management and booking system",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "fadeup",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/your-project-id"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fadeup.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app uses location to find nearby barber shops and provide accurate directions.",
+        "NSCameraUsageDescription": "This app uses the camera to take profile photos and shop images.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to photo library to upload profile photos and shop images.",
+        "NSMicrophoneUsageDescription": "This app uses the microphone for voice messages and customer support."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,11 +31,22 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.fadeup.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",
@@ -38,11 +61,43 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow FadeUp to use your location to find nearby barber shops."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#4F46E5",
+          "sounds": [
+            "./assets/sounds/notification-sound.wav"
+          ]
+        }
+      ],
+      [
+        "@react-native-firebase/app",
+        {
+          "ios": {
+            "googleServicesFile": "./GoogleService-Info.plist"
+          },
+          "android": {
+            "googleServicesFile": "./google-services.json"
+          }
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
     }
   }
 }

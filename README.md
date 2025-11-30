@@ -1,50 +1,113 @@
-# Welcome to your Expo app 👋
+# FadeUp - Real-time Barber Queue & Booking App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+FadeUp is a complete React Native Expo app that connects barbers and customers through real-time queue management and booking system. Built with TypeScript, Firebase, and modern React Native practices.
 
-## Get started
+## 🚀 Features
 
-1. Install dependencies
+### For Customers
+- **Find Nearby Barbers**: GPS-based shop discovery with distance sorting
+- **Real-time Queue**: Join queues remotely and get live position updates
+- **Service Booking**: Browse services, prices, and estimated wait times
+- **Live Notifications**: Get notified when it's your turn
+- **Queue Management**: View position, estimated wait time, and leave queue
 
+### For Barbers
+- **Shop Management**: Create and manage shop profile, services, and hours
+- **Real-time Queue View**: See all waiting customers with details
+- **Service Completion**: Mark customers as done with one tap
+- **Shop Status**: Toggle open/closed status
+- **Customer Management**: View customer details and service history
+
+### Technical Features
+- **Real-time Updates**: Instant queue updates using Firebase Firestore
+- **Offline Support**: Cached data with sync when back online
+- **Location Services**: GPS integration with permission handling
+- **Google Authentication**: Easy sign-in with Google OAuth
+- **Role-based Access**: Separate experiences for barbers and customers
+- **TypeScript**: Full type safety throughout the app
+- **Modern UI**: Clean, mobile-first design with consistent styling
+
+## 🛠 Tech Stack
+
+- **Frontend**: React Native (Expo) + TypeScript
+- **Backend**: Firebase (Authentication + Firestore + Cloud Functions)
+- **Real-time**: Firebase Firestore real-time listeners
+- **Location**: expo-location + react-native-maps
+- **Authentication**: Firebase Auth + Google Sign-In
+- **State Management**: React Context + React Query patterns
+- **Testing**: Jest + React Native Testing Library
+- **CI/CD**: GitHub Actions ready
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- npm or yarn
+- Expo CLI (`npm install -g expo-cli`)
+- Firebase account
+- Google Cloud Console account (for Google Sign-In)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd FadeUp
+   ```
+
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-2. Start the app
-
+3. **Setup Firebase**
+   
+   a. Create a new Firebase project at [Firebase Console](https://console.firebase.google.com)
+   
+   b. Enable the following services:
+      - Authentication (Email/Password + Google)
+      - Firestore Database
+      - Cloud Functions
+      - Firebase Cloud Messaging
+   
+   c. Copy your Firebase config and create `.env` file:
    ```bash
-   npx expo start
+   cp .env.example .env
+   ```
+   
+   d. Fill in your Firebase configuration in `.env`
+
+4. **Start the development server**
+   ```bash
+   npm start
    ```
 
-In the output, you'll find options to open the app in a
+## 🗃 Project Structure
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+The app follows a clean, modular architecture with TypeScript throughout.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## 📊 Database Schema
 
-## Get a fresh project
+### Collections
 
-When you're ready, run:
+#### Users, Shops, Services, Queue
+See the TypeScript types in `src/types/index.ts` for complete schema definitions.
+
+## 🧪 Testing
 
 ```bash
-npm run reset-project
+npm test
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🚀 Deployment
 
-## Learn more
+Build the app using Expo build tools and deploy Firebase backend.
 
-To learn more about developing your project with Expo, look at the following resources:
+## 📄 License
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+MIT License
 
-## Join the community
+---
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+**FadeUp** - Skip the wait, book your cut! ✂️
