@@ -1,98 +1,136 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import React from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
+    <SafeAreaView style={styles.container}>
+      <ThemedView style={styles.header}>
+        <ThemedText type="title">FadeUp</ThemedText>
+        <ThemedText type="subtitle" style={styles.subtitle}>
+          Find the perfect barbershop near you
         </ThemedText>
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+      
+      <ScrollView style={styles.content}>
+        {/* Search Section */}
+        <View style={styles.searchSection}>
+          <TouchableOpacity style={styles.searchButton}>
+            <ThemedText style={styles.searchText}>🔍 Search barbershops...</ThemedText>
+          </TouchableOpacity>
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+            Quick Actions
+          </ThemedText>
+          <View style={styles.actionGrid}>
+            <TouchableOpacity style={styles.actionCard}>
+              <ThemedText style={styles.actionEmoji}>📅</ThemedText>
+              <ThemedText style={styles.actionTitle}>Book Now</ThemedText>
+              <ThemedText style={styles.actionSubtitle}>Schedule an appointment</ThemedText>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.actionCard}>
+              <ThemedText style={styles.actionEmoji}>⏱️</ThemedText>
+              <ThemedText style={styles.actionTitle}>Join Queue</ThemedText>
+              <ThemedText style={styles.actionSubtitle}>Get in line virtually</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Featured Barbershops */}
+        <View style={styles.section}>
+          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+            Featured Barbershops
+          </ThemedText>
+          <View style={styles.emptyState}>
+            <ThemedText style={styles.emptyText}>
+              Featured barbershops will appear here once available.
+            </ThemedText>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    padding: 20,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  subtitle: {
+    marginTop: 5,
+    opacity: 0.7,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+  },
+  searchSection: {
+    marginBottom: 20,
+  },
+  searchButton: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  searchText: {
+    opacity: 0.6,
+  },
+  section: {
+    marginBottom: 30,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    marginBottom: 15,
+  },
+  actionGrid: {
     flexDirection: 'row',
+    gap: 15,
+  },
+  actionCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  actionEmoji: {
+    fontSize: 32,
+    marginBottom: 10,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  actionTitle: {
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  actionSubtitle: {
+    fontSize: 12,
+    opacity: 0.6,
+    textAlign: 'center',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+  },
+  emptyText: {
+    opacity: 0.6,
+    textAlign: 'center',
   },
 });

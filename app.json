@@ -77,17 +77,6 @@
             "./assets/sounds/notification-sound.wav"
           ]
         }
-      ],
-      [
-        "@react-native-firebase/app",
-        {
-          "ios": {
-            "googleServicesFile": "./GoogleService-Info.plist"
-          },
-          "android": {
-            "googleServicesFile": "./google-services.json"
-          }
-        }
       ]
     ],
     "experiments": {

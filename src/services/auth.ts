@@ -12,6 +12,10 @@ import { userService } from './firestore';
 
 export class AuthService {
   static async signUpWithEmail(formData: SignupFormData): Promise<User> {
+    if (!auth) {
+      throw new Error('Firebase not configured. Please set up your Firebase configuration.');
+    }
+    
     try {
       const userCredential = await createUserWithEmailAndPassword(
         auth, 
