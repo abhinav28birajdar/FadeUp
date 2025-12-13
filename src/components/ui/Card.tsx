@@ -1,8 +1,8 @@
-import { useTheme } from '@/src/theme';
 import React from 'react';
 import { View, ViewProps, ViewStyle } from 'react-native';
+import { useTheme } from '../../theme';
 
-type CardVariant = 'default' | 'elevated' | 'outlined';
+type CardVariant = 'default' | 'elevated' | 'outlined' | 'filled';
 
 interface CardProps extends ViewProps {
   variant?: CardVariant;
@@ -11,7 +11,7 @@ interface CardProps extends ViewProps {
 }
 
 export const Card: React.FC<CardProps> = ({
-  variant = 'default',
+  variant = 'elevated',
   padding = 'md',
   style,
   children,
@@ -23,6 +23,7 @@ export const Card: React.FC<CardProps> = ({
     const baseStyle: ViewStyle = {
       backgroundColor: theme.colors.card,
       borderRadius: theme.borderRadius.lg,
+      overflow: 'hidden',
     };
 
     const paddingStyles = {
@@ -37,11 +38,14 @@ export const Card: React.FC<CardProps> = ({
         ...theme.shadows.sm,
       },
       elevated: {
-        ...theme.shadows.lg,
+        ...theme.shadows.md,
       },
       outlined: {
         borderWidth: 1,
         borderColor: theme.colors.border,
+      },
+      filled: {
+        backgroundColor: theme.isDark ? theme.colors.gray[800] : theme.colors.gray[50],
       },
     };
 

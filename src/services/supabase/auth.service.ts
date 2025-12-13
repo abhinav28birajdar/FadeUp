@@ -103,6 +103,40 @@ export class SupabaseAuthService {
   }
 
   /**
+   * Get user profile
+   */
+  static async getProfile(userId: string): Promise<{ data: any; error: any }> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    return { data, error };
+  }
+
+  /**
+   * Update user profile
+   */
+  static async updateProfile(userId: string, updates: any): Promise<any> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  /**
    * Reset password
    */
   static async resetPassword(email: string): Promise<{ error: AuthError | null }> {

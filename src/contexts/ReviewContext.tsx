@@ -1,35 +1,20 @@
-import {
-    collection,
-    doc,
-    getDocs,
-    limit,
-    orderBy,
-    query,
-    runTransaction,
-    serverTimestamp,
-    where
-} from 'firebase/firestore';
 import React, { createContext, ReactNode, useContext, useState } from 'react';
-import { db } from '../config/firebase';
-import { enhancedShopService } from '../services/firestoreEnhanced';
+import { reviewService } from '../services/supabase/review.service';
+import type { Review } from '../types';
 
-export interface Review {
-  id: string;
-  userId: string;
-  shopId: string;
-  rating: number; // 1-5
-  comment: string;
-  customerName: string;
-  createdAt: Date;
-  isVerified?: boolean; // If the customer actually received service
-}
-
-interface ReviewContextType {
+export interface ReviewContextType {
   reviews: Review[];
   loading: boolean;
-  submitReview: (shopId: string, rating: number, comment: string) => Promise<void>;
+  submitReview: (
+    bookingId: string,
+    shopId: string,
+    barberId: string | null,
+    rating: number,
+    comment: string
+  ) => Promise<void>;
   getShopReviews: (shopId: string) => Promise<void>;
   getUserReviews: (userId: string) => Promise<void>;
+  respondToReview: (reviewId: string, response: string) => Promise<void>;
 }
 
 interface ReviewProviderProps {
@@ -42,29 +27,26 @@ export const ReviewProvider: React.FC<ReviewProviderProps> = ({ children }) => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const submitReview = async (shopId: string, rating: number, comment: string): Promise<void> => {
+  const submitReview = async (
+    bookingId: string,
+    shopId: string,
+    barberId: string | null,
+    rating: number,
+    comment: string
+  ): Promise<void> => {
     setLoading(true);
     try {
-      await runTransaction(db, async (transaction) => {
-        // Add the review
-        const reviewRef = doc(collection(db, 'reviews'));
-        const reviewData = {
-          userId: 'current-user-id', // This should come from auth context
-          shopId,
-          rating,
-          comment,
-          customerName: 'Customer Name', // This should come from auth context
-          createdAt: serverTimestamp(),
-          isVerified: false,
-        };
-        
-        transaction.set(reviewRef, reviewData);
-        
-        // Update shop rating (this is handled in enhancedShopService.addRating)
-        await enhancedShopService.addRating(shopId, rating);
-      });
+      // Get current user ID from auth context (you'd need to inject this)
+      const customerId = 'current-user-id'; // TODO: Get from auth context
       
-      console.log('Review submitted successfully');
+      await reviewService.submitReview(
+        bookingId,
+        shopId,
+        customerId,
+        barberId,
+        rating,
+        comment
+      );
     } catch (error) {
       console.error('Error submitting review:', error);
       throw error;
@@ -76,23 +58,7 @@ export const ReviewProvider: React.FC<ReviewProviderProps> = ({ children }) => {
   const getShopReviews = async (shopId: string): Promise<void> => {
     setLoading(true);
     try {
-      const q = query(
-        collection(db, 'reviews'),
-        where('shopId', '==', shopId),
-        orderBy('createdAt', 'desc'),
-        limit(20)
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const shopReviews = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        } as Review;
-      });
-      
+      const shopReviews = await reviewService.getShopReviews(shopId);
       setReviews(shopReviews);
     } catch (error) {
       console.error('Error fetching shop reviews:', error);
@@ -105,25 +71,29 @@ export const ReviewProvider: React.FC<ReviewProviderProps> = ({ children }) => {
   const getUserReviews = async (userId: string): Promise<void> => {
     setLoading(true);
     try {
-      const q = query(
-        collection(db, 'reviews'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const userReviews = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        } as Review;
-      });
-      
+      const userReviews = await reviewService.getUserReviews(userId);
       setReviews(userReviews);
     } catch (error) {
       console.error('Error fetching user reviews:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const respondToReview = async (reviewId: string, response: string): Promise<void> => {
+    setLoading(true);
+    try {
+      await reviewService.respondToReview(reviewId, response);
+      // Refresh reviews
+      const updatedReviews = reviews.map((review) =>
+        review.id === reviewId
+          ? { ...review, response, respondedAt: new Date() }
+          : review
+      );
+      setReviews(updatedReviews);
+    } catch (error) {
+      console.error('Error responding to review:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -138,6 +108,7 @@ export const ReviewProvider: React.FC<ReviewProviderProps> = ({ children }) => {
         submitReview,
         getShopReviews,
         getUserReviews,
+        respondToReview,
       }}
     >
       {children}

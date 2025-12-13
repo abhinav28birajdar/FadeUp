@@ -1,16 +1,30 @@
 import React, { createContext, ReactNode, useContext, useState } from 'react';
-import { bookingService } from '../services/firestoreEnhanced';
-import { pushNotificationService } from '../services/pushNotifications';
-import { Booking, BookingStatus } from '../types';
+import { bookingService, Booking } from '../services/supabase';
+import { toastService } from '../services/toast.service';
 import { useAuth } from './AuthContext';
 
 interface BookingContextType {
   bookings: Booking[];
   loading: boolean;
-  createBooking: (shopId: string, serviceId: string, scheduledTime: Date, notes?: string) => Promise<string>;
-  updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
-  getUserBookings: () => Promise<void>;
-  getShopBookings: (shopId: string) => Promise<void>;
+  createBooking: (
+    shopId: string,
+    serviceIds: string[],
+    scheduledTime: Date,
+    totalAmount: number,
+    notes?: string,
+    barberId?: string
+  ) => Promise<Booking>;
+  updateBookingStatus: (
+    bookingId: string,
+    status: Booking['status'],
+    reason?: string
+  ) => Promise<void>;
+  cancelBooking: (bookingId: string, reason?: string) => Promise<void>;
+  completeBooking: (bookingId: string) => Promise<void>;
+  getUserBookings: (status?: Booking['status']) => Promise<void>;
+  getShopBookings: (shopId: string, status?: Booking['status']) => Promise<void>;
+  getUpcomingBookings: () => Promise<void>;
+  getPastBookings: () => Promise<void>;
 }
 
 interface BookingProviderProps {
@@ -26,94 +40,154 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({ children }) =>
 
   const createBooking = async (
     shopId: string,
-    serviceId: string,
+    serviceIds: string[],
     scheduledTime: Date,
-    notes?: string
-  ): Promise<string> => {
+    totalAmount: number,
+    notes?: string,
+    barberId?: string
+  ): Promise<Booking> => {
     if (!user) {
-      throw new Error('User must be logged in to create booking');
+      toastService.error('Please sign in to create a booking');
+      throw new Error('User not authenticated');
     }
 
     setLoading(true);
     try {
-      const bookingId = await bookingService.createBooking({
+      // Calculate estimated duration (this should come from services in production)
+      const estimatedDuration = serviceIds.length * 30; // 30 mins per service estimate
+
+      const booking = await bookingService.createBooking({
         shopId,
-        userId: user.id,
-        serviceId,
-        scheduledTime,
-        status: 'pending',
-        notes,
+        customerId: user.id,
+        serviceIds,
+        bookingTime: scheduledTime,
+        estimatedDuration,
+        totalAmount,
+        customerNotes: notes,
+        barberId,
       });
 
-      // Send confirmation notification
-      await pushNotificationService.sendLocalNotification(
-        'Booking Created',
-        `Your booking request has been submitted for ${scheduledTime.toLocaleDateString()}`,
-        {
-          type: 'booking_confirmed',
-          bookingId,
-          shopId,
-        }
-      );
-
+      toastService.success('Booking created successfully!');
       await getUserBookings(); // Refresh bookings
-      return bookingId;
+
+      return booking;
     } catch (error) {
       console.error('Error creating booking:', error);
+      toastService.error('Failed to create booking');
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const updateBookingStatus = async (bookingId: string, status: BookingStatus): Promise<void> => {
+  const updateBookingStatus = async (
+    bookingId: string,
+    status: Booking['status'],
+    reason?: string
+  ): Promise<void> => {
     setLoading(true);
     try {
-      await bookingService.updateBookingStatus(bookingId, status);
+      await bookingService.updateBookingStatus(bookingId, status, reason);
       
       if (status === 'confirmed') {
-        await pushNotificationService.sendLocalNotification(
-          'Booking Confirmed',
-          'Your booking has been confirmed by the barber',
-          {
-            type: 'booking_confirmed',
-            bookingId,
-          }
-        );
+        toastService.success('Booking confirmed!');
+      } else if (status === 'completed') {
+        toastService.success('Booking completed!');
       }
 
       await getUserBookings(); // Refresh bookings
     } catch (error) {
       console.error('Error updating booking status:', error);
+      toastService.error('Failed to update booking');
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const getUserBookings = async (): Promise<void> => {
+  const cancelBooking = async (bookingId: string, reason?: string): Promise<void> => {
+    setLoading(true);
+    try {
+      await bookingService.cancelBooking(bookingId, reason);
+      toastService.success('Booking cancelled');
+      await getUserBookings(); // Refresh bookings
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      toastService.error('Failed to cancel booking');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeBooking = async (bookingId: string): Promise<void> => {
+    setLoading(true);
+    try {
+      await bookingService.completeBooking(bookingId);
+      toastService.success('Booking completed!');
+      await getUserBookings(); // Refresh bookings
+    } catch (error) {
+      console.error('Error completing booking:', error);
+      toastService.error('Failed to complete booking');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getUserBookings = async (status?: Booking['status']): Promise<void> => {
     if (!user) return;
 
     setLoading(true);
     try {
-      const userBookings = await bookingService.getBookingsByUser(user.id);
+      const userBookings = await bookingService.getCustomerBookings(user.id, status);
       setBookings(userBookings);
     } catch (error) {
       console.error('Error fetching user bookings:', error);
-      throw error;
+      toastService.error('Failed to load bookings');
     } finally {
       setLoading(false);
     }
   };
 
-  const getShopBookings = async (shopId: string): Promise<void> => {
+  const getShopBookings = async (shopId: string, status?: Booking['status']): Promise<void> => {
     setLoading(true);
     try {
-      const shopBookings = await bookingService.getBookingsByShop(shopId);
+      const shopBookings = await bookingService.getShopBookings(shopId, status);
       setBookings(shopBookings);
     } catch (error) {
       console.error('Error fetching shop bookings:', error);
-      throw error;
+      toastService.error('Failed to load bookings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getUpcomingBookings = async (): Promise<void> => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const upcoming = await bookingService.getUpcomingBookings(user.id);
+      setBookings(upcoming);
+    } catch (error) {
+      console.error('Error fetching upcoming bookings:', error);
+      toastService.error('Failed to load upcoming bookings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getPastBookings = async (): Promise<void> => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const past = await bookingService.getPastBookings(user.id);
+      setBookings(past);
+    } catch (error) {
+      console.error('Error fetching past bookings:', error);
+      toastService.error('Failed to load past bookings');
     } finally {
       setLoading(false);
     }
@@ -126,8 +200,12 @@ export const BookingProvider: React.FC<BookingProviderProps> = ({ children }) =>
         loading,
         createBooking,
         updateBookingStatus,
+        cancelBooking,
+        completeBooking,
         getUserBookings,
         getShopBookings,
+        getUpcomingBookings,
+        getPastBookings,
       }}
     >
       {children}

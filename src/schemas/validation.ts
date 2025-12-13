@@ -97,9 +97,6 @@ export const createReviewSchema = z.object({
 export const appConfigSchema = z.object({
   supabaseUrl: z.string().url('Invalid Supabase URL'),
   supabaseAnonKey: z.string().min(1, 'Supabase anon key is required'),
-  firebaseApiKey: z.string().optional(),
-  firebaseAuthDomain: z.string().optional(),
-  firebaseProjectId: z.string().optional(),
 });
 
 // Queue schemas

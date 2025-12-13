@@ -5,9 +5,6 @@ import { Platform } from 'react-native';
 export interface AppConfig {
   supabaseUrl: string;
   supabaseAnonKey: string;
-  firebaseApiKey?: string;
-  firebaseAuthDomain?: string;
-  firebaseProjectId?: string;
 }
 
 const CONFIG_KEY = 'app_secure_config';
@@ -66,17 +63,17 @@ class ConfigManager {
       this.config = null;
     } catch (error) {
       console.error('Failed to clear config:', error);
+      throw new Error('Failed to clear configuration');
     }
   }
 
-  getConfig(): AppConfig | null {
+  getCachedConfig(): AppConfig | null {
     return this.config;
   }
 
-  isConfigured(): boolean {
-    return this.config !== null && 
-           !!this.config.supabaseUrl && 
-           !!this.config.supabaseAnonKey;
+  async isConfigured(): Promise<boolean> {
+    const config = await this.loadConfig();
+    return config !== null && !!config.supabaseUrl && !!config.supabaseAnonKey;
   }
 }
 

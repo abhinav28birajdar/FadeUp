@@ -11,9 +11,9 @@ import {
     Text,
     View,
 } from 'react-native';
-import { Button } from '../components/ui/Button.enhanced';
-import { Card } from '../components/ui/Card.enhanced';
-import { Input } from '../components/ui/Input.enhanced';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
 import { configManager } from '../config/ConfigManager';
 import { initializeSupabase, resetSupabase } from '../config/supabase';
 import { AppConfigFormData, appConfigSchema } from '../schemas/validation';
@@ -34,9 +34,6 @@ export const ConfigSetupScreen: React.FC = () => {
     defaultValues: {
       supabaseUrl: '',
       supabaseAnonKey: '',
-      firebaseApiKey: '',
-      firebaseAuthDomain: '',
-      firebaseProjectId: '',
     },
   });
 
@@ -50,9 +47,6 @@ export const ConfigSetupScreen: React.FC = () => {
       if (config) {
         setValue('supabaseUrl', config.supabaseUrl);
         setValue('supabaseAnonKey', config.supabaseAnonKey);
-        setValue('firebaseApiKey', config.firebaseApiKey || '');
-        setValue('firebaseAuthDomain', config.firebaseAuthDomain || '');
-        setValue('firebaseProjectId', config.firebaseProjectId || '');
         setIsConfigured(true);
       }
     } catch (error) {
@@ -100,9 +94,6 @@ export const ConfigSetupScreen: React.FC = () => {
             resetSupabase();
             setValue('supabaseUrl', '');
             setValue('supabaseAnonKey', '');
-            setValue('firebaseApiKey', '');
-            setValue('firebaseAuthDomain', '');
-            setValue('firebaseProjectId', '');
             setIsConfigured(false);
             Alert.alert('Success', 'Configuration cleared successfully');
           },
@@ -150,12 +141,12 @@ export const ConfigSetupScreen: React.FC = () => {
             ]}
           >
             {isConfigured
-              ? 'Update your API configuration below'
-              : 'Set up your Supabase and Firebase credentials to get started'}
+              ? 'Update your Supabase configuration below'
+              : 'Set up your Supabase credentials to get started'}
           </Text>
         </View>
 
-        <Card variant="elevated" padding="lg" style={styles.card}>
+        <Card style={styles.card}>
           <Text
             style={[
               styles.sectionTitle,
@@ -165,7 +156,7 @@ export const ConfigSetupScreen: React.FC = () => {
               },
             ]}
           >
-            Supabase Configuration (Required)
+            Supabase Configuration
           </Text>
 
           <Controller
@@ -178,7 +169,6 @@ export const ConfigSetupScreen: React.FC = () => {
                 value={value}
                 onChangeText={onChange}
                 error={errors.supabaseUrl?.message}
-                leftIcon="cloud-outline"
                 keyboardType="url"
                 autoCapitalize="none"
               />
@@ -195,70 +185,7 @@ export const ConfigSetupScreen: React.FC = () => {
                 value={value}
                 onChangeText={onChange}
                 error={errors.supabaseAnonKey?.message}
-                leftIcon="key-outline"
                 secureTextEntry
-                autoCapitalize="none"
-              />
-            )}
-          />
-
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: theme.colors.text.primary,
-                fontFamily: theme.typography.fontFamily.semibold,
-                marginTop: theme.spacing[6],
-              },
-            ]}
-          >
-            Firebase Configuration (Optional)
-          </Text>
-
-          <Controller
-            control={control}
-            name="firebaseApiKey"
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Firebase API Key"
-                placeholder="AIzaSyD..."
-                value={value}
-                onChangeText={onChange}
-                error={errors.firebaseApiKey?.message}
-                leftIcon="flame-outline"
-                autoCapitalize="none"
-              />
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="firebaseAuthDomain"
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Firebase Auth Domain"
-                placeholder="your-project.firebaseapp.com"
-                value={value}
-                onChangeText={onChange}
-                error={errors.firebaseAuthDomain?.message}
-                leftIcon="globe-outline"
-                autoCapitalize="none"
-              />
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="firebaseProjectId"
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Firebase Project ID"
-                placeholder="your-project-id"
-                value={value}
-                onChangeText={onChange}
-                error={errors.firebaseProjectId?.message}
-                leftIcon="folder-outline"
-                autoCapitalize="none"
               />
             )}
           />
@@ -269,7 +196,6 @@ export const ConfigSetupScreen: React.FC = () => {
             onPress={handleSubmit(onSubmit)}
             loading={isLoading}
             disabled={isLoading}
-            fullWidth
           >
             {isConfigured ? 'Update Configuration' : 'Save Configuration'}
           </Button>
@@ -278,7 +204,6 @@ export const ConfigSetupScreen: React.FC = () => {
             <Button
               onPress={handleClearConfig}
               variant="outline"
-              fullWidth
               style={styles.clearButton}
             >
               Clear Configuration
@@ -306,7 +231,8 @@ export const ConfigSetupScreen: React.FC = () => {
             ]}
           >
             Your credentials are stored securely using Expo SecureStore and never leave your
-            device.
+            device. You can find your Supabase credentials in your project settings at
+            supabase.com.
           </Text>
         </View>
       </ScrollView>

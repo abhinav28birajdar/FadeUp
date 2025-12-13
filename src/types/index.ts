@@ -17,6 +17,43 @@ export interface User {
   updatedAt: Date;
 }
 
+export interface Profile {
+  id: string;
+  email: string;
+  phone?: string;
+  fullName: string;
+  avatarUrl?: string;
+  role: 'customer' | 'barber' | 'admin';
+  isOnboarded: boolean;
+  language: string;
+  theme: string;
+  notificationToken?: string;
+  shopId?: string;
+  walletBalance: number;
+  totalBookings: number;
+  totalSpent: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Review {
+  id: string;
+  bookingId: string;
+  shopId: string;
+  customerId: string;
+  barberId?: string | null;
+  rating: number; // 1-5
+  comment: string;
+  response?: string;
+  respondedAt?: Date;
+  isVisible: boolean;
+  customerName?: string;
+  customerAvatar?: string;
+  shopName?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Shop {
   id: string;
   barberId: string; // user_id
