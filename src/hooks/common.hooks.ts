@@ -56,7 +56,7 @@ export function useDebounceCallback<T extends (...args: any[]) => any>(
  * Hook for previous value
  */
 export function usePrevious<T>(value: T): T | undefined {
-  const ref = useRef<T>();
+  const ref = useRef<T | undefined>(undefined);
 
   useEffect(() => {
     ref.current = value;

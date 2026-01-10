@@ -36,3 +36,6 @@ export class ToastService {
     Toast.hide();
   }
 }
+
+// Export instance for backwards compatibility
+export const toastService = ToastService;

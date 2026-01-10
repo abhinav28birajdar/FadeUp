@@ -172,4 +172,47 @@ export class SupabaseAuthService {
     });
     return { error };
   }
+
+  /**
+   * Verify phone number with OTP
+   */
+  static async verifyPhone(phone: string, code: string): Promise<{ error: AuthError | null }> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    const { error } = await supabase.auth.verifyOtp({
+      phone,
+      token: code,
+      type: 'sms',
+    });
+    return { error };
+  }
+
+  /**
+   * Send phone verification code
+   */
+  static async sendPhoneVerification(phone: string): Promise<{ error: AuthError | null }> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    const { error } = await supabase.auth.signInWithOtp({
+      phone,
+    });
+    return { error };
+  }
+
+  /**
+   * Sign in with OAuth provider
+   */
+  static async signInWithOAuth(provider: 'google' | 'apple' | 'facebook'): Promise<{ error: AuthError | null }> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+    });
+    return { error };
+  }
 }
+
+export type AuthUser = User;

@@ -146,6 +146,106 @@ export class ReviewService {
   }
 
   /**
+   * Check if user can review (alias for canReviewBooking)
+   */
+  async canUserReview(customerId: string, shopId: string): Promise<boolean> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    // Check if user has a completed booking at this shop without a review
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, reviews!left(id)')
+      .eq('customer_id', customerId)
+      .eq('shop_id', shopId)
+      .eq('status', 'completed')
+      .is('reviews.id', null)
+      .limit(1);
+
+    if (error) return false;
+    return data && data.length > 0;
+  }
+
+  /**
+   * Create a review (alias for submitReview)
+   */
+  async createReview(reviewData: {
+    shopId: string;
+    customerId: string;
+    bookingId: string;
+    barberId?: string;
+    rating: number;
+    comment?: string;
+  }): Promise<Review> {
+    return this.submitReview(
+      reviewData.bookingId,
+      reviewData.shopId,
+      reviewData.customerId,
+      reviewData.barberId || null,
+      reviewData.rating,
+      reviewData.comment || ''
+    );
+  }
+
+  /**
+   * Update a review
+   */
+  async updateReview(reviewId: string, rating: number, comment: string): Promise<Review> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    const { data, error } = await supabase
+      .from('reviews')
+      .update({ rating, comment, updated_at: new Date().toISOString() })
+      .eq('id', reviewId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return this.mapReviewFromDb(data);
+  }
+
+  /**
+   * Delete a review
+   */
+  async deleteReview(reviewId: string): Promise<void> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    const { error } = await supabase
+      .from('reviews')
+      .delete()
+      .eq('id', reviewId);
+
+    if (error) throw error;
+  }
+
+  /**
+   * Get barber reviews (alias for shop reviews filtered by barber)
+   */
+  async getBarberReviews(barberId: string, limit = 20): Promise<Review[]> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    const { data, error } = await supabase
+      .from('reviews')
+      .select(`
+        *,
+        profiles:customer_id (
+          full_name,
+          avatar_url
+        )
+      `)
+      .eq('barber_id', barberId)
+      .eq('is_visible', true)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return (data || []).map(this.mapReviewFromDb);
+  }
+
+  /**
    * Map database review to app Review type
    */
   private mapReviewFromDb(data: any): Review {

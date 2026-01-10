@@ -334,6 +334,98 @@ class BookingService {
       return false;
     }
   }
+
+  /**
+   * Get available time slots for a barber on a specific date
+   */
+  async getAvailableSlots(
+    shopId: string,
+    barberId: string,
+    date: string
+  ): Promise<string[]> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    try {
+      // Get shop operating hours
+      const { data: shop } = await supabase
+        .from('shops')
+        .select('operating_hours')
+        .eq('id', shopId)
+        .single();
+
+      if (!shop) return [];
+
+      // Get existing bookings for the date
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const { data: bookings } = await supabase
+        .from('bookings')
+        .select('booking_time, estimated_end_time')
+        .eq('shop_id', shopId)
+        .eq('barber_id', barberId)
+        .in('status', ['pending', 'confirmed'])
+        .gte('booking_time', startOfDay.toISOString())
+        .lte('booking_time', endOfDay.toISOString());
+
+      // Generate available slots (simplified - 30 min intervals from 9am to 6pm)
+      const slots: string[] = [];
+      const bookedTimes = new Set(
+        (bookings || []).map(b => new Date(b.booking_time).toISOString().slice(11, 16))
+      );
+
+      for (let hour = 9; hour < 18; hour++) {
+        for (let min = 0; min < 60; min += 30) {
+          const timeStr = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+          if (!bookedTimes.has(timeStr)) {
+            slots.push(timeStr);
+          }
+        }
+      }
+
+      return slots;
+    } catch (error) {
+      console.error('Error getting available slots:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Reschedule a booking
+   */
+  async rescheduleBooking(
+    bookingId: string,
+    newDate: string,
+    newTime: string
+  ): Promise<Booking> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    try {
+      const newDateTime = new Date(`${newDate}T${newTime}`);
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({
+          booking_time: newDateTime.toISOString(),
+        })
+        .eq('id', bookingId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      analyticsService.trackEvent('booking_rescheduled', { bookingId });
+
+      return data as Booking;
+    } catch (error) {
+      analyticsService.trackError(error as Error);
+      throw error;
+    }
+  }
 }
 
 export const bookingService = new BookingService();

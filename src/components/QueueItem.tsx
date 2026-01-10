@@ -142,7 +142,7 @@ export const QueueItem: React.FC<QueueItemProps> = React.memo(({
       {showActions && (item.status === 'waiting' || item.status === 'in-progress') && (
         <View style={{ flexDirection: 'row' }}>
           {!isBarber && onCancel && item.status === 'waiting' && (
-            <Button variant="destructive" size="sm" onPress={handleCancel} style={{ flex: 1 }}>Cancel</Button>
+            <Button variant="danger" size="sm" onPress={handleCancel} style={{ flex: 1 }}>Cancel</Button>
           )}
 
           {isBarber && onEdit && (

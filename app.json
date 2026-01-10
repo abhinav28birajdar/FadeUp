@@ -68,16 +68,7 @@
           "locationAlwaysAndWhenInUsePermission": "Allow FadeUp to use your location to find nearby barber shops."
         }
       ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/notification-icon.png",
-          "color": "#4F46E5",
-          "sounds": [
-            "./assets/sounds/notification-sound.wav"
-          ]
-        }
-      ]
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,

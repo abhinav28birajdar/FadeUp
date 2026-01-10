@@ -264,6 +264,64 @@ class QueueService {
     }
     this.subscriptions.clear();
   }
+
+  /**
+   * Get customer's position in any queue
+   */
+  async getCustomerPosition(customerId: string): Promise<QueuePosition | null> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    try {
+      const { data, error } = await supabase
+        .from('queue_positions')
+        .select('*')
+        .eq('customer_id', customerId)
+        .in('status', ['waiting', 'serving'])
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as QueuePosition | null;
+    } catch (error) {
+      console.error('Error getting customer position:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get customer's active queue entry
+   */
+  async getCustomerActiveEntry(customerId: string): Promise<QueuePosition | null> {
+    return this.getCustomerPosition(customerId);
+  }
+
+  /**
+   * Call the next customer (barber action)
+   */
+  async callCustomer(queueItemId: string): Promise<QueuePosition> {
+    return this.updateQueueStatus(queueItemId, 'serving');
+  }
+
+  /**
+   * Start service for a customer (barber action)
+   */
+  async startService(queueItemId: string): Promise<QueuePosition> {
+    return this.updateQueueStatus(queueItemId, 'serving');
+  }
+
+  /**
+   * Complete service for a customer (barber action)
+   */
+  async completeService(queueItemId: string): Promise<QueuePosition> {
+    return this.updateQueueStatus(queueItemId, 'completed');
+  }
+
+  /**
+   * Mark customer as no-show (barber action)
+   */
+  async markNoShow(queueItemId: string): Promise<QueuePosition> {
+    return this.updateQueueStatus(queueItemId, 'cancelled');
+  }
 }
 
 export const queueService = new QueueService();

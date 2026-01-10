@@ -1,5 +1,5 @@
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
-import { queueService, QueuePosition } from '../services/supabase';
+import { QueuePosition, queueService } from '../services/supabase';
 import { toastService } from '../services/toast.service';
 import { useAuth } from './AuthContext';
 
@@ -153,14 +153,6 @@ export function QueueProvider({ children, shopId }: QueueProviderProps) {
       {children}
     </QueueContext.Provider>
   );
-}
-
-export function useQueue() {
-  const context = useContext(QueueContext);
-  if (context === undefined) {
-    throw new Error('useQueue must be used within a QueueProvider');
-  }
-  return context;
 }
 
 export function useQueue() {
