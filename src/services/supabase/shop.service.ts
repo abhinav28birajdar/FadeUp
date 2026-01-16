@@ -339,6 +339,129 @@ class ShopService {
       throw error;
     }
   }
+
+  /**
+   * Get shop barbers/staff
+   */
+  async getShopBarbers(shopId: string): Promise<any[]> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    try {
+      const { data, error } = await supabase
+        .from('barber_profiles')
+        .select('*, users!barber_profiles_user_id_fkey(id, full_name, avatar_url, email)')
+        .eq('shop_id', shopId)
+        .eq('is_active', true);
+
+      if (error) throw error;
+
+      return data || [];
+    } catch (error) {
+      console.error('Error getting shop barbers:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get shop gallery images
+   */
+  async getShopGallery(shopId: string): Promise<any[]> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    try {
+      const { data, error } = await supabase
+        .from('shop_gallery')
+        .select('*')
+        .eq('shop_id', shopId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      return data || [];
+    } catch (error) {
+      console.error('Error getting shop gallery:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get shop by barber/owner ID
+   */
+  async getByBarberId(barberId: string): Promise<Shop | null> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    try {
+      const { data, error } = await supabase
+        .from('shops')
+        .select('*')
+        .eq('owner_id', barberId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+
+      return data as Shop | null;
+    } catch (error) {
+      console.error('Error getting shop by barber:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Alias for getNearbyShops - for compatibility
+   */
+  async getNearby(
+    latitude: number,
+    longitude: number,
+    radiusKm: number = 10,
+    limit: number = 20
+  ): Promise<NearbyShop[]> {
+    return this.getNearbyShops(latitude, longitude, radiusKm, limit);
+  }
+
+  /**
+   * Alias for updateShop - for compatibility
+   */
+  async update(shopId: string, updates: Partial<Shop>): Promise<Shop> {
+    return this.updateShop(shopId, updates);
+  }
+
+  /**
+   * Create a shop - for compatibility
+   */
+  async create(shopData: Partial<Shop>): Promise<Shop> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    try {
+      const { data, error } = await supabase
+        .from('shops')
+        .insert({
+          ...shopData,
+          status: 'pending',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      analyticsService.trackEvent('shop_created', { shopId: data.id });
+
+      return data as Shop;
+    } catch (error) {
+      analyticsService.trackError(error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get services for a shop - alias
+   */
+  async getServices(shopId: string): Promise<Service[]> {
+    return this.getShopServices(shopId);
+  }
 }
 
 export const shopService = new ShopService();

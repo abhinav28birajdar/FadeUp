@@ -197,30 +197,42 @@ export const TabBar: React.FC<TabBarProps> = ({
  * Scrollable horizontal filter chips
  */
 interface FilterChip {
-  key: string;
+  key?: string;
+  id?: string;
   label: string;
   icon?: React.ReactNode;
 }
 
 interface FilterChipsProps {
-  chips: FilterChip[];
-  activeChips: string[];
-  onChipToggle: (chipKey: string) => void;
+  chips?: FilterChip[];
+  options?: FilterChip[];
+  activeChips?: string[];
+  selected?: string[];
+  onChipToggle?: (chipKey: string) => void;
+  onSelect?: (chipKey: string) => void;
   multiSelect?: boolean;
   style?: ViewStyle;
 }
 
 export const FilterChips: React.FC<FilterChipsProps> = ({
   chips,
+  options,
   activeChips,
+  selected,
   onChipToggle,
+  onSelect,
   multiSelect = false,
   style,
 }) => {
   const theme = useTheme();
+  
+  // Support both prop naming conventions
+  const chipItems = chips || options || [];
+  const activeItems = activeChips || selected || [];
+  const handleToggle = onChipToggle || onSelect || (() => {});
 
   const handlePress = (chipKey: string) => {
-    onChipToggle(chipKey);
+    handleToggle(chipKey);
   };
 
   return (
@@ -229,12 +241,13 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={[styles.chipsContainer, style]}
     >
-      {chips.map((chip) => {
-        const isActive = activeChips.includes(chip.key);
+      {chipItems.map((chip) => {
+        const chipKey = chip.key || chip.id || chip.label;
+        const isActive = activeItems.includes(chipKey);
         return (
           <TouchableOpacity
-            key={chip.key}
-            onPress={() => handlePress(chip.key)}
+            key={chipKey}
+            onPress={() => handlePress(chipKey)}
             style={[
               styles.chip,
               {

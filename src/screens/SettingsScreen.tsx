@@ -1,20 +1,20 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
-import { useTheme, useThemeStore } from '../theme';
-import { Card } from '../components/ui/Card.enhanced';
-import { Button } from '../components/ui/Button.enhanced';
-import { useAuthStore } from '../store/authStore.enhanced';
-import { SupabaseAuthService } from '../services/supabase/auth.service';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import React from 'react';
+import {
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { SupabaseAuthService } from '../services/supabase/auth.service';
+import { useAuthStore } from '../store/authStore';
+import { useTheme, useThemeStore } from '../theme';
 
 export const SettingsScreen: React.FC = () => {
   const theme = useTheme();

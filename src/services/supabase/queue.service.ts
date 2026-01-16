@@ -322,6 +322,13 @@ class QueueService {
   async markNoShow(queueItemId: string): Promise<QueuePosition> {
     return this.updateQueueStatus(queueItemId, 'cancelled');
   }
+
+  /**
+   * Alias for subscribeToQueue - for compatibility
+   */
+  onQueueUpdate(shopId: string, callback: (queue: QueuePosition[]) => void): () => void {
+    return this.subscribeToQueue(shopId, callback);
+  }
 }
 
 export const queueService = new QueueService();
