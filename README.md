@@ -1,10 +1,10 @@
-# FadeUp - Premium Barber Booking App (UI Only)
+# FadeUp - Premium Barber Booking App 
 
-<div align="center">
-  <img src="./assets/icon.png" width="100" height="100" alt="FadeUp Icon" />
-  <h1>FadeUp</h1>
-  <p>A premium, production-grade mobile UI for the modern grooming experience.</p>
-</div>
+<p align="center">
+  <img src="src/assets/icon.png" alt="FadeUp Logo" width="120px">
+</p>
+
+# FadeUp - Modern Barbershop Booking
 
 ## 🎨 UI Features
 
