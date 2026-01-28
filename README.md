@@ -8,7 +8,17 @@
 **FadeUp** is a full-stack appointment management platform built with **React Native (Expo)** and **Supabase**. We are actively building the core business logic, database relationships, and distinct workflows for both barbers and clients.
 
 ## 🛠️ Tech Stack
+
+<p align="left">
+  <img src="https://img.shields.io/badge/React_Native-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React Native" />
+  <img src="https://img.shields.io/badge/Expo-1B1F23?style=for-the-badge&logo=expo&logoColor=white" alt="Expo" />
+  <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Supabase-181818?style=for-the-badge&logo=supabase&logoColor=3ECF8E" alt="Supabase" />
+  <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+</p>
+
 * **Frontend:** React Native with Expo (Managed Workflow)
+* **Language:** TypeScript
 * **Navigation:** Expo Router (File-based)
 * **Backend/Database:** Supabase (PostgreSQL)
 * **Authentication:** Supabase Auth (Email/OTP & Social Login)
