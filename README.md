@@ -1,52 +1,68 @@
-# FadeUp - Premium Barber Booking App 
+# FadeUp - Premium Barber Booking App
 
 <p align="center">
   <img src="src/assets/icon.png" alt="FadeUp Logo" width="120px">
 </p>
 
-# FadeUp - Modern Barbershop Booking
+## 🚀 Status: Active Development
+**FadeUp** is a full-stack appointment management platform built with **React Native (Expo)** and **Supabase**. We are actively building the core business logic, database relationships, and distinct workflows for both barbers and clients.
 
-## 🎨 UI Features
-
-FadeUp features a high-fidelity, dark-themed design system tailored for elegance and usability.
-
-*   **Premium Design System**: Custom dark mode palette with gold accents (`#EEBA2B`), glassmorphism effects using `BlurView`, and smooth linear gradients.
-*   **Production-Ready Components**: Reusable, typed components including `Button`, `Input`, `Avatar`, `Badge`, and `ThemedText`.
-*   **Advanced Navigation**: Seamless flow using Expo Router with Bottom Tabs, Stacks, and Modals.
-*   **Micro-Interactions**: Touch feedback, smooth transitions, and polished layout structures.
-
-## 📱 Screens Overview
-
-### Onboarding & Auth
-*   **Welcome**: Hero animation with clear call-to-actions.
-*   **Features Carousel**: Interactive slider showcasing app benefits.
-*   **Permission Primer**: Contextual request screen for notifications, location, and camera.
-*   **Authentication**: Login, Register (Customer & Barber), Forgot Password, and visual OTP verification.
-
-### Main App (Tabs)
-*   **Home Dashboard**: Location-aware shop discovery, category filters, and featured carousel.
-*   **Explore**: Grid view of top-rated barbers and salons.
-*   **Chat**: Real-time messaging interface with message list and detailed chat room.
-*   **Notifications**: Activity feed for bookings and promos.
-*   **Profile**: User settings, stats, and account management.
-
-### Barber Features
-*   **Dashboard**: Real-time stats (visits, earnings) and live queue management.
-*   **Shop Management**: Service editor, operating hours, and shop profile customization.
-*   **Bookings Calendar**: Schedule view for upcoming appointments.
-
-### Details & Modals
-*   **Shop Detail**: Immersive hero header, service list, team roster, and sticky booking action.
-*   **Chat Room**: Full chat UI with bubbles, timestamping, and input area.
-*   **Modals**: Image previews and context menus.
-
-## 🖌️ Design Highlights
-
-*   **Typography**: Scalable type system (xs to huge) for consistent readability.
-*   **Spacing**: 8pt grid system for perfect alignment.
-*   **Iconography**: Consistent use of Lucide React Native icons.
-*   **Visual Hierarchy**: clear distinction between primary actions, secondary information, and interactive elements.
+## 🛠️ Tech Stack
+* **Frontend:** React Native with Expo (Managed Workflow)
+* **Navigation:** Expo Router (File-based)
+* **Backend/Database:** Supabase (PostgreSQL)
+* **Authentication:** Supabase Auth (Email/OTP & Social Login)
+* **Storage:** Supabase Buckets (Profile Photos, Portfolios)
+* **Maps:** React Native Maps / Google Places API
 
 ---
 
-*This project is a frontend reference implementation using React Native, Expo, and TypeScript. No backend integration included.*
+## ⚙️ Core Functions & Modules
+
+### 👤 Customer Mode
+* **Smart Explore & Geolocation:**
+    * Real-time "Near Me" search using device location.
+    * **Price Comparison Engine:** Filter shops by service cost (Low-to-High) to find the best deals.
+    * Dynamic filtering by specific services (e.g., "Fade," "Beard Trim," "Facial").
+* **Booking Management:**
+    * Live slot selection based on barber availability.
+    * Deposit/Partial payment handling.
+    * Appointment history & easy "Rebook" functionality.
+* **User Profile:**
+    * Personal details and avatar management.
+    * **Favorites List:** Save go-to barbers for quick access.
+    * **Loyalty Wallet:** Track points/stamps earned from specific shops.
+
+### ✂️ Barber/Shop Mode
+* **Shop Management Console:**
+    * Service Menu Editor: Add services, duration, and pricing.
+    * **Dynamic Portfolio:** Upload and delete photos of recent cuts to showcase skills.
+    * Operating Hours: Set weekly schedules and specific "Time Off" blocks.
+* **Queue & Request Hub:**
+    * Incoming Booking Requests: Accept or Reject logic with reason input.
+    * Live Queue Dashboard: Mark customers as "Seated," "Completed," or "No-Show."
+* **Financials:**
+    * Daily/Weekly earning reports.
+    * Commission tracking (if applicable).
+
+### 🤝 Shared Features
+* **Authentication Flow:** Secure login/signup with role selection (Customer vs. Barber).
+* **In-App Chat:** Real-time messaging for rescheduling or location inquiries (Supabase Realtime).
+* **Reviews & Ratings:**
+    * Customers can rate completed appointments.
+    * Barbers can reply to feedback.
+
+---
+
+## 🎯 Next Goals (Roadmap)
+- [ ] **Waitlist System:** Allow customers to join a waitlist for fully booked days.
+- [ ] **Staff Management:** Allow "Shop Owners" to manage multiple "Barber" accounts under one shop.
+- [ ] **No-Show Protection:** Implement cancellation fees via Stripe integration.
+- [ ] **AI Recommendations:** Suggest cuts based on face shape or trends (Future Scope).
+
+---
+
+### 📂 View Latest Progress
+This branch focuses on the implementation of backend logic and functional components. To view the stable version or contribute:
+
+👉 **Check the [Main Branch](https://github.com/abhinav28birajdar/FadeUp/tree/main)**
