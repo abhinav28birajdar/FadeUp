@@ -1,273 +1,204 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Image, FlatList } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Container } from '../../components/ui/Container';
-import { ThemedText } from '../../components/ui/ThemedText';
-import { ThemedView } from '../../components/ui/ThemedView';
-import { Input } from '../../components/ui/Input';
 import { Colors } from '../../constants/colors';
-import { Spacing, BorderRadius } from '../../constants/spacing';
-import { MapPin, Bell, Search, Filter, Star, Clock, Heart } from 'lucide-react-native';
-
-// Mock Data
-const CATEGORIES = ['All', 'Haircut', 'Beard', 'Coloring', 'Facial'];
-const NEARBY_SHOPS = [
-    { id: '1', name: 'Fade Masters', rating: 4.8, reviews: 120, distance: '1.2 km', image: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=500&auto=format&fit=crop&q=60', isOpen: true, waitTime: '15 min' },
-    { id: '2', name: 'Urban Cuts', rating: 4.5, reviews: 85, distance: '2.5 km', image: 'https://images.unsplash.com/photo-1503951914875-452162b7f304?w=500&auto=format&fit=crop&q=60', isOpen: true, waitTime: '30 min' },
-    { id: '3', name: 'Elite Grooming', rating: 4.9, reviews: 200, distance: '3.0 km', image: 'https://images.unsplash.com/photo-1621605815971-fbc98d6d4e84?w=500&auto=format&fit=crop&q=60', isOpen: false, waitTime: 'Closed' },
-];
+import { Typography } from '../../constants/typography';
+import { Spacing } from '../../constants/spacing';
+import { useAuthContext } from '../../context/AuthContext';
+import { Shop, ShopCategory } from '../../types/firestore.types';
+import { shopService } from '../../services/shop.service';
+import { Search, Bell } from 'lucide-react-native';
+import { useNotificationStore } from '../../store/notification.store';
+import { Input } from '../../components/ui/Input';
+import { ShopCard } from '../../components/ui/ShopCard';
+import { getGreeting } from '../../utils/dateHelpers';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
     const router = useRouter();
-    const [activeCategory, setActiveCategory] = useState('All');
+    const insets = useSafeAreaInsets();
+    const { user } = useAuthContext();
+    const { unreadCount } = useNotificationStore();
 
-    const renderShopCard = ({ item }: { item: typeof NEARBY_SHOPS[0] }) => (
-        <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.9}
-            onPress={() => router.push(`/shop/${item.id}`)}
-        >
-            <Image source={{ uri: item.image }} style={styles.cardImage} />
-            <View style={styles.cardContent}>
-                <View style={styles.cardHeader}>
-                    <ThemedText variant="lg" weight="bold">{item.name}</ThemedText>
-                    <View style={styles.ratingContainer}>
-                        <Star size={14} color={Colors.primary} fill={Colors.primary} />
-                        <ThemedText variant="sm" weight="medium" style={{ marginLeft: 4 }}>{item.rating}</ThemedText>
-                    </View>
-                </View>
-                <ThemedText variant="sm" color={Colors.textSecondary} style={styles.address}>
-                    {item.distance} • {item.reviews} reviews
-                </ThemedText>
+    const [shops, setShops] = useState<Shop[]>([]);
+    const [refreshing, setRefreshing] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState<ShopCategory | 'all'>('all');
+    const categories: (ShopCategory | 'all')[] = ['all', 'haircut', 'beard', 'coloring', 'facial', 'kids'];
 
-                <View style={styles.cardFooter}>
-                    <View style={[styles.badge, item.isOpen ? styles.badgeOpen : styles.badgeClosed]}>
-                        <ThemedText variant="xs" color={item.isOpen ? Colors.success : Colors.textTertiary} weight="medium">
-                            {item.isOpen ? 'Open Now' : 'Closed'}
-                        </ThemedText>
-                    </View>
-                    {item.isOpen && (
-                        <View style={styles.waitTime}>
-                            <Clock size={14} color={Colors.warning} />
-                            <ThemedText variant="xs" color={Colors.warning} style={{ marginLeft: 4 }}>
-                                ~{item.waitTime} wait
-                            </ThemedText>
-                        </View>
-                    )}
-                </View>
-            </View>
-            <TouchableOpacity style={styles.favButton}>
-                <Heart size={20} color={Colors.white} />
-            </TouchableOpacity>
-        </TouchableOpacity>
-    );
+    const loadShops = useCallback(async () => {
+        try {
+            const data = await shopService.getApprovedShops();
+            setShops(data);
+        } catch (e) {
+            console.error(e);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadShops();
+    }, [loadShops]);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await loadShops();
+        setRefreshing(false);
+    };
+
+    const filteredShops = selectedCategory === 'all'
+        ? shops
+        : shops.filter(s => s.category.includes(selectedCategory as ShopCategory));
+
+    const featuredShops = shops.slice(0, 5); // Just mockup logic for featured
 
     return (
-        <Container>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
             <View style={styles.header}>
-                <View>
-                    <ThemedText variant="xs" color={Colors.textSecondary}>Current Location</ThemedText>
-                    <View style={styles.locationRow}>
-                        <MapPin size={16} color={Colors.primary} />
-                        <ThemedText variant="sm" weight="semibold" style={{ marginLeft: 4 }}>
-                            New York, USA
-                        </ThemedText>
-                    </View>
+                <View style={styles.headerText}>
+                    <Text style={[Typography.body, { color: Colors.textSecondary }]}>{getGreeting()},</Text>
+                    <Text style={[Typography.h2, { color: Colors.text }]}>{user?.displayName?.split(' ')[0]}</Text>
                 </View>
-                <TouchableOpacity style={styles.bellButton}>
+                <TouchableOpacity style={styles.notificationBtn} onPress={() => router.push('/notifications')}>
                     <Bell size={24} color={Colors.text} />
-                    <View style={styles.notificationDot} />
+                    {unreadCount > 0 && <View style={styles.badge} />}
                 </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                {/* Search */}
-                <View style={styles.searchContainer}>
-                    <Input
-                        placeholder="Find a shop or barber..."
-                        leftIcon={<Search size={20} color={Colors.textTertiary} />}
-                        rightIcon={<Filter size={20} color={Colors.primary} />}
-                        containerStyle={{ marginBottom: 0 }}
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+                showsVerticalScrollIndicator={false}
+            >
+                <TouchableOpacity style={styles.searchBar} onPress={() => router.push('/(tabs)/explore')} activeOpacity={0.8}>
+                    <Search size={20} color={Colors.textMuted} style={styles.searchIcon} />
+                    <Text style={[Typography.body, { color: Colors.textMuted }]}>Search for barbers, styles...</Text>
+                </TouchableOpacity>
+
+                <View style={styles.categoriesContainer}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesScroll}>
+                        {categories.map((cat) => (
+                            <TouchableOpacity
+                                key={cat}
+                                style={[styles.categoryChip, selectedCategory === cat && styles.categoryChipActive]}
+                                onPress={() => setSelectedCategory(cat)}
+                            >
+                                <Text style={[Typography.bodySmall, { color: selectedCategory === cat ? Colors.black : Colors.text, textTransform: 'capitalize', fontWeight: '600' }]}>
+                                    {cat}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+
+                <View style={styles.section}>
+                    <Text style={[Typography.h3, styles.sectionTitle, { color: Colors.text }]}>Featured</Text>
+                    <FlatList
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        data={featuredShops}
+                        keyExtractor={(item) => item.id}
+                        contentContainerStyle={styles.horizontalList}
+                        renderItem={({ item }) => (
+                            <ShopCard shop={item} layout="vertical" onPress={() => router.push(`/shop/${item.id}`)} />
+                        )}
+                        ItemSeparatorComponent={() => <View style={{ width: Spacing.md }} />}
                     />
                 </View>
 
-                {/* Categories */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesContainer}>
-                    {CATEGORIES.map((cat, index) => (
-                        <TouchableOpacity
-                            key={index}
-                            style={[styles.categoryChip, activeCategory === cat && styles.categoryChipActive]}
-                            onPress={() => setActiveCategory(cat)}
-                        >
-                            <ThemedText
-                                variant="sm"
-                                color={activeCategory === cat ? Colors.black : Colors.textSecondary}
-                                weight={activeCategory === cat ? 'semibold' : 'regular'}
-                            >
-                                {cat}
-                            </ThemedText>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-
-                {/* Featured Section (Horizontal) */}
-                <View style={styles.sectionHeader}>
-                    <ThemedText variant="lg" weight="bold">Featured Shops</ThemedText>
-                    <ThemedText variant="sm" color={Colors.primary}>See All</ThemedText>
-                </View>
-                <FlatList
-                    horizontal
-                    data={NEARBY_SHOPS} // Reusing for demo
-                    renderItem={renderShopCard}
-                    keyExtractor={(item) => `featured-${item.id}`}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.featuredList}
-                />
-
-                {/* Nearby Shops (Vertical) */}
-                <View style={styles.sectionHeader}>
-                    <ThemedText variant="lg" weight="bold">Nearby You</ThemedText>
-                </View>
-                <View style={styles.verticalList}>
-                    {NEARBY_SHOPS.map((shop) => (
+                <View style={styles.section}>
+                    <Text style={[Typography.h3, styles.sectionTitle, { color: Colors.text }]}>Nearby Shops</Text>
+                    {filteredShops.map(shop => (
                         <View key={shop.id} style={{ marginBottom: Spacing.md }}>
-                            {renderShopCard({ item: shop })}
+                            <ShopCard shop={shop} layout="horizontal" onPress={() => router.push(`/shop/${shop.id}`)} />
                         </View>
                     ))}
+                    {filteredShops.length === 0 && (
+                        <Text style={[Typography.body, { color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.xl }]}>
+                            No shops found in this category.
+                        </Text>
+                    )}
                 </View>
             </ScrollView>
-        </Container>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: Colors.background,
+    },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: Spacing.md,
-        paddingHorizontal: Spacing.md,
+        paddingHorizontal: Spacing.xl,
+        paddingTop: Spacing.md,
+        paddingBottom: Spacing.md,
     },
-    locationRow: {
-        flexDirection: 'row',
+    headerText: {
+        flex: 1,
+    },
+    notificationBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: Colors.surfaceElevated,
+        justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 2,
-    },
-    bellButton: {
-        padding: 8,
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.full,
         position: 'relative',
     },
-    notificationDot: {
+    badge: {
         position: 'absolute',
-        top: 8,
-        right: 8,
+        top: 10,
+        right: 12,
         width: 8,
         height: 8,
         borderRadius: 4,
         backgroundColor: Colors.error,
-        borderWidth: 1,
-        borderColor: Colors.surface,
     },
     scrollContent: {
         paddingBottom: Spacing.xxl,
     },
-    searchContainer: {
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.surfaceElevated,
+        marginHorizontal: Spacing.xl,
         paddingHorizontal: Spacing.md,
-        marginBottom: Spacing.md,
+        height: 50,
+        borderRadius: Spacing.borderRadius.md,
+        marginBottom: Spacing.lg,
+    },
+    searchIcon: {
+        marginRight: Spacing.sm,
     },
     categoriesContainer: {
-        paddingLeft: Spacing.md,
         marginBottom: Spacing.lg,
+    },
+    categoriesScroll: {
+        paddingHorizontal: Spacing.xl,
+        gap: Spacing.sm,
     },
     categoryChip: {
         paddingHorizontal: Spacing.lg,
         paddingVertical: Spacing.sm,
-        borderRadius: BorderRadius.full,
-        backgroundColor: Colors.surface,
-        marginRight: Spacing.sm,
+        borderRadius: Spacing.borderRadius.full,
         borderWidth: 1,
         borderColor: Colors.border,
+        backgroundColor: Colors.surface,
     },
     categoryChipActive: {
         backgroundColor: Colors.primary,
         borderColor: Colors.primary,
     },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: Spacing.md,
+    section: {
+        marginBottom: Spacing.xl,
+    },
+    sectionTitle: {
+        marginHorizontal: Spacing.xl,
         marginBottom: Spacing.md,
     },
-    featuredList: {
-        paddingLeft: Spacing.md,
-        paddingRight: Spacing.md, // Add right padding
-        marginBottom: Spacing.lg,
-    },
-    verticalList: {
-        paddingHorizontal: Spacing.md,
-    },
-    card: {
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.lg,
-        overflow: 'hidden',
-        marginBottom: Spacing.xs,
-        width: 280, // For horizontal
-        marginRight: Spacing.md, // For horizontal gap
-    },
-    cardImage: {
-        width: '100%',
-        height: 140,
-    },
-    cardContent: {
-        padding: Spacing.md,
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    ratingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: Colors.surfaceLight,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    address: {
-        marginBottom: Spacing.md,
-    },
-    cardFooter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    badge: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 4,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-    },
-    badgeOpen: {
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-    },
-    badgeClosed: {
-        backgroundColor: 'rgba(113, 113, 122, 0.1)',
-    },
-    waitTime: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    favButton: {
-        position: 'absolute',
-        top: 10,
-        right: 10,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        padding: 6,
-        borderRadius: BorderRadius.full,
+    horizontalList: {
+        paddingHorizontal: Spacing.xl,
     },
 });

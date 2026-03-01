@@ -1,101 +1,80 @@
 import React from 'react';
-import { TouchableOpacity, StyleSheet, ActivityIndicator, TouchableOpacityProps, StyleProp, ViewStyle, TextStyle } from 'react-native';
-import { ThemedText } from './ThemedText';
-import { ThemedView } from './ThemedView';
+import { View, StyleSheet, TouchableOpacity, TouchableOpacityProps, Text, ActivityIndicator, TextStyle, ViewStyle } from 'react-native';
 import { Colors } from '../../constants/colors';
-import { Spacing, BorderRadius } from '../../constants/spacing';
-
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+import { Typography } from '../../constants/typography';
+import { Spacing } from '../../constants/spacing';
 
 export interface ButtonProps extends TouchableOpacityProps {
     label: string;
-    variant?: ButtonVariant;
+    variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+    size?: 'sm' | 'md' | 'lg';
     isLoading?: boolean;
-    leftIcon?: React.ReactNode;
-    rightIcon?: React.ReactNode;
+    labelStyle?: TextStyle;
     fullWidth?: boolean;
-    labelStyle?: StyleProp<TextStyle>;
 }
 
-export function Button({
-    label,
-    variant = 'primary',
-    isLoading = false,
-    leftIcon,
-    rightIcon,
-    fullWidth = true,
-    style,
-    labelStyle,
-    disabled,
-    ...props
-}: ButtonProps) {
+export function Button({ label, variant = 'primary', size = 'md', isLoading, disabled, style, labelStyle, fullWidth, ...props }: ButtonProps) {
+    const isOutline = variant === 'outline';
+
     const getBackgroundColor = () => {
-        if (disabled) return Colors.surfaceLight;
         switch (variant) {
             case 'primary': return Colors.primary;
-            case 'secondary': return Colors.surfaceLight;
-            case 'outline': return 'transparent';
-            case 'ghost': return 'transparent';
+            case 'secondary': return Colors.surfaceElevated;
             case 'danger': return Colors.error;
-            default: return Colors.primary;
+            case 'ghost': case 'outline': return Colors.transparent;
         }
     };
 
     const getTextColor = () => {
-        if (disabled) return Colors.textTertiary;
         switch (variant) {
             case 'primary': return Colors.black;
-            case 'secondary': return Colors.text;
-            case 'outline': return Colors.primary;
-            case 'ghost': return Colors.textSecondary;
             case 'danger': return Colors.white;
-            default: return Colors.black;
+            case 'ghost': case 'outline': return Colors.primary;
+            case 'secondary': return Colors.text;
         }
     };
 
-    const getBorder = () => {
-        if (variant === 'outline') {
-            return {
-                borderWidth: 1,
-                borderColor: disabled ? Colors.surfaceLight : Colors.primary,
-            };
+    const getHeight = () => {
+        switch (size) {
+            case 'sm': return 36;
+            case 'md': return 48;
+            case 'lg': return 56;
         }
-        return {};
+    };
+
+    const getPadding = () => {
+        switch (size) {
+            case 'sm': return Spacing.md;
+            case 'md': return Spacing.lg;
+            case 'lg': return Spacing.xl;
+        }
     };
 
     return (
         <TouchableOpacity
+            activeOpacity={0.7}
+            disabled={disabled || isLoading}
             style={[
                 styles.container,
                 {
                     backgroundColor: getBackgroundColor(),
-                    width: fullWidth ? '100%' : 'auto',
-                    opacity: disabled || isLoading ? 0.7 : 1,
+                    height: getHeight(),
+                    paddingHorizontal: getPadding(),
+                    borderColor: isOutline ? Colors.primary : Colors.transparent,
+                    borderWidth: isOutline ? 1 : 0,
+                    opacity: disabled || isLoading ? 0.6 : 1,
+                    width: fullWidth ? '100%' : undefined,
                 },
-                getBorder(),
                 style,
             ]}
-            disabled={disabled || isLoading}
-            activeOpacity={0.8}
             {...props}
         >
             {isLoading ? (
-                <ActivityIndicator color={getTextColor()} />
+                <ActivityIndicator color={getTextColor() || Colors.primary} />
             ) : (
-                <>
-                    {leftIcon && <ThemedView style={{ marginRight: 8, backgroundColor: 'transparent' }}>{leftIcon}</ThemedView>}
-                    <ThemedText
-                        variant="md"
-                        weight="bold"
-                        style={[
-                            { color: getTextColor() },
-                            labelStyle
-                        ]}
-                    >
-                        {label}
-                    </ThemedText>
-                    {rightIcon && <ThemedView style={{ marginLeft: 8, backgroundColor: 'transparent' }}>{rightIcon}</ThemedView>}
-                </>
+                <Text style={[Typography.button, { color: getTextColor() }, labelStyle]}>
+                    {label}
+                </Text>
             )}
         </TouchableOpacity>
     );
@@ -103,12 +82,9 @@ export function Button({
 
 const styles = StyleSheet.create({
     container: {
+        borderRadius: Spacing.borderRadius.md,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: Spacing.lg,
-        borderRadius: BorderRadius.full,
-        minHeight: 52,
     },
 });

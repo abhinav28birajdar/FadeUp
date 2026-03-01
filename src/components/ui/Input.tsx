@@ -1,83 +1,53 @@
-import React, { useState } from 'react';
-import { TextInput, TextInputProps, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
+import React, { ReactNode, useState } from 'react';
+import { View, TextInput, Text, StyleSheet, TextInputProps, TouchableOpacity, StyleProp, ViewStyle } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
-import { Spacing, BorderRadius } from '../../constants/spacing';
-import { ThemedText } from './ThemedText';
-import { ThemedView } from './ThemedView';
+import { Spacing } from '../../constants/spacing';
 import { Eye, EyeOff } from 'lucide-react-native';
 
-interface InputProps extends TextInputProps {
+export interface InputProps extends TextInputProps {
     label?: string;
     error?: string;
-    leftIcon?: React.ReactNode;
-    rightIcon?: React.ReactNode;
-    containerStyle?: ViewStyle;
-    isPassword?: boolean;
+    leftIcon?: ReactNode;
+    rightIcon?: ReactNode;
+    secureTextEntry?: boolean;
+    containerStyle?: StyleProp<ViewStyle>;
 }
 
-export function Input({
-    label,
-    error,
-    leftIcon,
-    rightIcon,
-    containerStyle,
-    isPassword = false,
-    ...props
-}: InputProps) {
+export function Input({ label, error, leftIcon, rightIcon, secureTextEntry, containerStyle, ...props }: InputProps) {
     const [isFocused, setIsFocused] = useState(false);
-    const [showPassword, setShowPassword] = useState(false);
-
-    // Toggle password visibility
-    const togglePasswordVisibility = () => {
-        setShowPassword(!showPassword);
-    };
+    const [isSecure, setIsSecure] = useState(secureTextEntry);
 
     return (
-        <ThemedView style={[styles.container, containerStyle, { backgroundColor: 'transparent' }]}>
-            {label && (
-                <ThemedText variant="sm" color={Colors.textSecondary} style={styles.label}>
-                    {label}
-                </ThemedText>
-            )}
+        <View style={[styles.container, containerStyle]}>
+            {label && <Text style={[Typography.label, styles.label, { color: Colors.textSecondary }]}>{label}</Text>}
 
-            <ThemedView
-                style={[
-                    styles.inputContainer,
-                    isFocused && styles.focusedInput,
-                    !!error && styles.errorInput,
-                ]}
-            >
-                {leftIcon && <ThemedView style={styles.leftIcon}>{leftIcon}</ThemedView>}
+            <View style={[
+                styles.inputContainer,
+                { borderColor: error ? Colors.error : isFocused ? Colors.primary : Colors.border },
+            ]}>
+                {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
 
                 <TextInput
-                    style={styles.input}
-                    placeholderTextColor={Colors.textTertiary}
+                    style={[Typography.body, styles.input, { color: Colors.text }]}
+                    placeholderTextColor={Colors.textMuted}
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setIsFocused(false)}
-                    secureTextEntry={isPassword && !showPassword}
+                    secureTextEntry={isSecure}
                     {...props}
                 />
 
-                {isPassword ? (
-                    <TouchableOpacity onPress={togglePasswordVisibility} style={styles.rightIcon}>
-                        {showPassword ? (
-                            <EyeOff size={20} color={Colors.textSecondary} />
-                        ) : (
-                            <Eye size={20} color={Colors.textSecondary} />
-                        )}
+                {secureTextEntry && (
+                    <TouchableOpacity onPress={() => setIsSecure(!isSecure)} style={styles.rightIcon}>
+                        {isSecure ? <EyeOff size={20} color={Colors.textMuted} /> : <Eye size={20} color={Colors.textMuted} />}
                     </TouchableOpacity>
-                ) : (
-                    rightIcon && <ThemedView style={styles.rightIcon}>{rightIcon}</ThemedView>
                 )}
-            </ThemedView>
 
-            {error && (
-                <ThemedText variant="xs" color={Colors.error} style={styles.errorText}>
-                    {error}
-                </ThemedText>
-            )}
-        </ThemedView>
+                {!secureTextEntry && rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
+            </View>
+
+            {error && <Text style={[Typography.caption, styles.errorText, { color: Colors.error }]}>{error}</Text>}
+        </View>
     );
 }
 
@@ -87,41 +57,28 @@ const styles = StyleSheet.create({
     },
     label: {
         marginBottom: Spacing.xs,
-        marginLeft: Spacing.xs,
     },
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: Colors.surfaceLight,
-        borderRadius: BorderRadius.lg,
-        borderWidth: 1,
-        borderColor: 'transparent',
-        height: 56,
-        paddingHorizontal: Spacing.md,
-    },
-    focusedInput: {
-        borderColor: Colors.primary,
         backgroundColor: Colors.surface,
-    },
-    errorInput: {
-        borderColor: Colors.error,
+        borderWidth: 1,
+        borderRadius: Spacing.borderRadius.md,
+        height: 48,
+        paddingHorizontal: Spacing.md,
     },
     input: {
         flex: 1,
-        color: Colors.text,
-        fontSize: Typography.sizes.md,
         height: '100%',
+        paddingVertical: 0,
     },
     leftIcon: {
         marginRight: Spacing.sm,
-        backgroundColor: 'transparent',
     },
     rightIcon: {
         marginLeft: Spacing.sm,
-        backgroundColor: 'transparent',
     },
     errorText: {
         marginTop: Spacing.xs,
-        marginLeft: Spacing.xs,
     },
 });

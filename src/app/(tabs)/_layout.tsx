@@ -1,7 +1,7 @@
+import React from 'react';
 import { Tabs } from 'expo-router';
+import { Home, Search, Calendar, MessageSquare, User } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
-import { Home, Compass, MessageSquare, Bell, User } from 'lucide-react-native';
-import { Platform } from 'react-native';
 
 export default function TabsLayout() {
     return (
@@ -11,16 +11,11 @@ export default function TabsLayout() {
                 tabBarStyle: {
                     backgroundColor: Colors.surface,
                     borderTopColor: Colors.border,
-                    height: Platform.OS === 'ios' ? 85 : 65,
-                    paddingBottom: Platform.OS === 'ios' ? 30 : 10,
-                    paddingTop: 10,
+                    height: 60,
+                    paddingBottom: 10,
                 },
                 tabBarActiveTintColor: Colors.primary,
-                tabBarInactiveTintColor: Colors.textTertiary,
-                tabBarLabelStyle: {
-                    fontSize: 10,
-                    fontWeight: '500',
-                },
+                tabBarInactiveTintColor: Colors.textMuted,
             }}
         >
             <Tabs.Screen
@@ -34,7 +29,14 @@ export default function TabsLayout() {
                 name="explore"
                 options={{
                     title: 'Explore',
-                    tabBarIcon: ({ color, size }) => <Compass size={size} color={color} />,
+                    tabBarIcon: ({ color, size }) => <Search size={size} color={color} />,
+                }}
+            />
+            <Tabs.Screen
+                name="appointments"
+                options={{
+                    title: 'Bookings',
+                    tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
                 }}
             />
             <Tabs.Screen
@@ -42,13 +44,6 @@ export default function TabsLayout() {
                 options={{
                     title: 'Chat',
                     tabBarIcon: ({ color, size }) => <MessageSquare size={size} color={color} />,
-                }}
-            />
-            <Tabs.Screen
-                name="notifications"
-                options={{
-                    title: 'Updates',
-                    tabBarIcon: ({ color, size }) => <Bell size={size} color={color} />,
                 }}
             />
             <Tabs.Screen

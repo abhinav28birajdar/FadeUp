@@ -1,112 +1,104 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Container } from '../../components/ui/Container';
-import { ThemedText } from '../../components/ui/ThemedText';
-import { Button } from '../../components/ui/Button';
+import { Bell, Camera, MapPin } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
-import { Spacing, BorderRadius } from '../../constants/spacing';
-import { Bell, MapPin, Camera } from 'lucide-react-native';
+import { Typography } from '../../constants/typography';
+import { Spacing } from '../../constants/spacing';
+import { Button } from '../../components/ui/Button';
+import { notificationService } from '../../services/notification.service';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuthContext } from '../../context/AuthContext';
 
-export default function PermissionsScreen() {
+export default function PermissionsSetup() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const { completeOnboarding } = useAuthContext();
 
-    const handleContinue = () => {
-        // In a real app, request permissions here
-        router.replace('/(auth)/user-choice'); // Go to auth choice after onboarding
+    const handleGetStarted = async () => {
+        // Optionally ask for notification permissions during onboarding
+        await notificationService.requestPermissions();
+
+        await completeOnboarding();
+        router.replace('/(auth)/welcome');
     };
 
     return (
-        <Container style={styles.container}>
-            <View style={styles.header}>
-                <ThemedText variant="xxl" weight="bold">Enable Permissions</ThemedText>
-                <ThemedText variant="md" color={Colors.textSecondary} style={styles.subtitle}>
-                    To provide the best experience, FadeUp needs access to a few things.
-                </ThemedText>
-            </View>
+        <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+            <View style={styles.content}>
+                <Text style={[Typography.h1, styles.title, { color: Colors.text }]}>Let's get set up</Text>
+                <Text style={[Typography.body, styles.description, { color: Colors.textSecondary }]}>
+                    FadeUp needs a few permissions to give you the best experience.
+                </Text>
 
-            <View style={styles.permissionsList}>
                 <View style={styles.permissionItem}>
-                    <View style={styles.iconContainer}>
+                    <View style={styles.iconBox}>
                         <Bell size={24} color={Colors.primary} />
                     </View>
-                    <View style={styles.textContainer}>
-                        <ThemedText variant="lg" weight="bold">Notifications</ThemedText>
-                        <ThemedText variant="sm" color={Colors.textSecondary}>
-                            Get updates on your queue status and booking reminders.
-                        </ThemedText>
+                    <View style={styles.permissionText}>
+                        <Text style={[Typography.h4, { color: Colors.text }]}>Notifications</Text>
+                        <Text style={[Typography.caption, { color: Colors.textMuted }]}>To remind you about bookings and your spot in the queue.</Text>
                     </View>
                 </View>
 
                 <View style={styles.permissionItem}>
-                    <View style={styles.iconContainer}>
-                        <MapPin size={24} color={Colors.primary} />
-                    </View>
-                    <View style={styles.textContainer}>
-                        <ThemedText variant="lg" weight="bold">Location</ThemedText>
-                        <ThemedText variant="sm" color={Colors.textSecondary}>
-                            Find barber shops near you and see live distances.
-                        </ThemedText>
-                    </View>
-                </View>
-
-                <View style={styles.permissionItem}>
-                    <View style={styles.iconContainer}>
+                    <View style={styles.iconBox}>
                         <Camera size={24} color={Colors.primary} />
                     </View>
-                    <View style={styles.textContainer}>
-                        <ThemedText variant="lg" weight="bold">Camera & Photos</ThemedText>
-                        <ThemedText variant="sm" color={Colors.textSecondary}>
-                            Upload profile pictures and shop gallery images.
-                        </ThemedText>
+                    <View style={styles.permissionText}>
+                        <Text style={[Typography.h4, { color: Colors.text }]}>Camera</Text>
+                        <Text style={[Typography.caption, { color: Colors.textMuted }]}>To set your profile picture and share style references.</Text>
                     </View>
                 </View>
+
             </View>
 
             <View style={styles.footer}>
-                <Button label="Enable All & Continue" onPress={handleContinue} />
-                <Button label="Maybe Later" variant="ghost" onPress={handleContinue} />
+                <Button label="Get Started" onPress={handleGetStarted} fullWidth />
             </View>
-        </Container>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        justifyContent: 'space-between',
-        paddingHorizontal: Spacing.lg,
-    },
-    header: {
-        marginTop: Spacing.xl,
-    },
-    subtitle: {
-        marginTop: 8,
-    },
-    permissionsList: {
         flex: 1,
+        backgroundColor: Colors.background,
+    },
+    content: {
+        flex: 1,
+        padding: Spacing.xl,
         justifyContent: 'center',
-        gap: Spacing.xl,
+    },
+    title: {
+        marginBottom: Spacing.sm,
+    },
+    description: {
+        marginBottom: Spacing.xxl,
     },
     permissionItem: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    iconContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: BorderRadius.full,
+        marginBottom: Spacing.xl,
         backgroundColor: Colors.surface,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: Spacing.md,
+        padding: Spacing.md,
+        borderRadius: Spacing.borderRadius.md,
         borderWidth: 1,
         borderColor: Colors.border,
     },
-    textContainer: {
+    iconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: Colors.surfaceElevated,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: Spacing.md,
+    },
+    permissionText: {
         flex: 1,
     },
     footer: {
-        paddingVertical: Spacing.xl,
-        gap: Spacing.sm,
+        padding: Spacing.xl,
     },
 });

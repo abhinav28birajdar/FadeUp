@@ -1,307 +1,214 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import React from 'react';
-import { StyleSheet, View, ScrollView, Image, Dimensions, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, FlatList } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { Container } from '../../components/ui/Container';
-import { ThemedText } from '../../components/ui/ThemedText';
-import { Button } from '../../components/ui/Button';
 import { Colors } from '../../constants/colors';
-import { Spacing, BorderRadius } from '../../constants/spacing';
-import { MoveLeft, Star, Clock, MapPin, Share2, Heart, CheckCircle } from 'lucide-react-native';
-
-const { width } = Dimensions.get('window');
-
-const SHOP_DATA = {
-    id: '1',
-    name: 'Fade Masters',
-    image: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800',
-    rating: 4.8,
-    reviews: 124,
-    address: '123 Barber St, New York, NY',
-    status: 'Open Now',
-    services: [
-        { id: '1', name: 'Classic Fade', price: '$35', duration: '45 min' },
-        { id: '2', name: 'Beard Trim', price: '$20', duration: '20 min' },
-        { id: '3', name: 'Hot Towel Shave', price: '$40', duration: '30 min' },
-    ],
-    barbers: [
-        { id: '1', name: 'Mike', image: 'https://i.pravatar.cc/150?u=mike' },
-        { id: '2', name: 'Dave', image: 'https://i.pravatar.cc/150?u=dave' },
-    ]
-};
+import { Typography } from '../../constants/typography';
+import { Spacing } from '../../constants/spacing';
+import { Shop, Service, Barber } from '../../types/firestore.types';
+import { shopService } from '../../services/shop.service';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
+import { Button } from '../../components/ui/Button';
+import { StarRating } from '../../components/ui/StarRating';
+import { formatRating } from '../../utils/formatters';
+import { MapPin, Phone, Clock, Share2, Heart, ShieldCheck } from 'lucide-react-native';
+import { useFavoritesStore } from '../../store/favorites.store';
+import { useBookingStore } from '../../store/booking.store';
+import { ServiceCard } from '../../components/ui/ServiceCard';
+import { BarberCard } from '../../components/ui/BarberCard';
+import { chatService } from '../../services/chat.service';
+import { useAuthContext } from '../../context/AuthContext';
+import { useToastStore } from '../../components/ui/Toast';
 
 export default function ShopDetailScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const shopId = id as string;
+    const { user } = useAuthContext();
+    const { isFavorite, addFavorite, removeFavorite } = useFavoritesStore();
+    const { setSelectedShop, resetBooking } = useBookingStore();
+    const { showToast } = useToastStore();
+
+    const [shop, setShopData] = useState<Shop | null>(null);
+    const [services, setServices] = useState<Service[]>([]);
+    const [barbers, setBarbers] = useState<Barber[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const isFav = isFavorite(shopId);
+
+    useEffect(() => {
+        const fetchShopData = async () => {
+            try {
+                const [shopData, shopServices, shopBarbers] = await Promise.all([
+                    shopService.getShopById(shopId),
+                    shopService.getShopServices(shopId),
+                    shopService.getShopBarbers(shopId)
+                ]);
+
+                if (shopData) {
+                    setShopData(shopData);
+                    setServices(shopServices);
+                    setBarbers(shopBarbers);
+                }
+            } catch (e) {
+                console.error('Error fetching shop details:', e);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchShopData();
+    }, [shopId]);
+
+    const toggleFavorite = () => {
+        if (isFav) removeFavorite(shopId);
+        else addFavorite(shopId);
+    };
+
+    const startBooking = () => {
+        if (shop) {
+            resetBooking();
+            setSelectedShop(shop);
+            router.push('/booking/select-service');
+        }
+    };
+
+    const startChat = async () => {
+        if (!user || !shop) return;
+        try {
+            // Find or create a chat room between user and shop owner
+            const roomId = await chatService.getOrCreateChatRoom(
+                user.uid,
+                shop.id,
+                shop.ownerId,
+                shop.name || 'Shop',
+                shop.photoURL || null,
+                user.displayName || 'Customer',
+                user.photoURL || null
+            );
+            router.push(`/chat/${roomId}`);
+        } catch (e) {
+            showToast({ message: 'Failed to start chat', type: 'error' });
+        }
+    };
+
+    if (!shop && !isLoading) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ScreenHeader title="" />
+                <Text style={[Typography.h3, { color: Colors.text }]}>Shop not found</Text>
+            </View>
+        );
+    }
 
     return (
-        <Container padding={false}>
+        <View style={styles.container}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-                {/* Hero Section */}
-                <View style={styles.hero}>
-                    <Image source={{ uri: SHOP_DATA.image }} style={styles.heroImage} />
-                    <LinearGradient
-                        colors={['transparent', 'rgba(0,0,0,0.8)']}
-                        style={styles.heroGradient}
-                    >
-                        <View style={styles.heroHeader}>
-                            <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-                                <MoveLeft size={24} color={Colors.white} />
-                            </TouchableOpacity>
-                            <View style={styles.heroActions}>
-                                <TouchableOpacity style={styles.iconBtn}>
-                                    <Share2 size={24} color={Colors.white} />
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.iconBtn}>
-                                    <Heart size={24} color={Colors.white} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
+                {shop?.coverPhotoURL || shop?.photoURL ? (
+                    <Image source={{ uri: shop.coverPhotoURL || shop.photoURL || '' }} style={styles.coverImage} />
+                ) : (
+                    <View style={[styles.coverImage, { backgroundColor: Colors.surfaceElevated }]} />
+                )}
 
-                        <View style={styles.shopInfo}>
-                            <ThemedText variant="display" weight="bold" color={Colors.white}>{SHOP_DATA.name}</ThemedText>
-                            <View style={styles.ratingRow}>
-                                <Star size={16} color={Colors.primary} fill={Colors.primary} />
-                                <ThemedText variant="sm" color={Colors.white} style={{ marginLeft: 4 }}>
-                                    {SHOP_DATA.rating} ({SHOP_DATA.reviews} reviews)
-                                </ThemedText>
-                                <View style={styles.dot} />
-                                <ThemedText variant="sm" color={Colors.success} weight="bold">{SHOP_DATA.status}</ThemedText>
-                            </View>
-                            <View style={styles.addressRow}>
-                                <MapPin size={16} color={Colors.textTertiary} />
-                                <ThemedText variant="sm" color={Colors.textTertiary} style={{ marginLeft: 4 }}>{SHOP_DATA.address}</ThemedText>
-                            </View>
-                        </View>
-                    </LinearGradient>
+                <View style={styles.headerButtons}>
+                    <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
+                        <ScreenHeader title="" transparent />
+                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', position: 'absolute', top: 50, right: Spacing.md, gap: Spacing.md }}>
+                        <TouchableOpacity style={styles.iconButton} onPress={toggleFavorite}>
+                            <Heart size={20} color={isFav ? Colors.error : Colors.white} fill={isFav ? Colors.error : 'rgba(0,0,0,0.3)'} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.iconButton}>
+                            <Share2 size={20} color={Colors.white} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
-                {/* Services Section */}
-                <View style={styles.section}>
-                    <ThemedText variant="lg" weight="bold" style={styles.sectionTitle}>Services</ThemedText>
-                    {SHOP_DATA.services.map((service) => (
-                        <View key={service.id} style={styles.serviceCard}>
-                            <View>
-                                <ThemedText variant="md" weight="semibold">{service.name}</ThemedText>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                                    <Clock size={14} color={Colors.textTertiary} />
-                                    <ThemedText variant="xs" color={Colors.textTertiary} style={{ marginLeft: 4 }}>{service.duration}</ThemedText>
-                                </View>
-                            </View>
-                            <View style={styles.priceTag}>
-                                <ThemedText variant="md" weight="bold" color={Colors.black}>{service.price}</ThemedText>
-                            </View>
-                        </View>
-                    ))}
-                </View>
+                <View style={styles.content}>
+                    <View style={styles.titleRow}>
+                        <Text style={[Typography.h1, { color: Colors.text, flex: 1 }]} numberOfLines={2}>{shop?.name}</Text>
+                        {shop?.isApproved && <ShieldCheck size={24} color={Colors.primary} />}
+                    </View>
 
-                {/* Team Section */}
-                <View style={styles.section}>
-                    <ThemedText variant="lg" weight="bold" style={styles.sectionTitle}>Meet the Team</ThemedText>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -Spacing.md, paddingHorizontal: Spacing.md }}>
-                        {SHOP_DATA.barbers.map((barber) => (
-                            <View key={barber.id} style={styles.barberCard}>
-                                <Image source={{ uri: barber.image }} style={styles.barberImage} />
-                                <ThemedText variant="sm" weight="medium" centered style={{ marginTop: 8 }}>{barber.name}</ThemedText>
-                            </View>
-                        ))}
-                    </ScrollView>
+                    <View style={styles.ratingRow}>
+                        <StarRating rating={1} size={16} />
+                        <Text style={[Typography.body, { color: Colors.text, marginLeft: Spacing.xs }]}>
+                            {formatRating(shop?.rating || 0)}
+                        </Text>
+                        <Text style={[Typography.body, { color: Colors.textMuted, marginLeft: 4 }]}>
+                            ({shop?.reviewCount || 0} reviews)
+                        </Text>
+                    </View>
+
+                    <View style={styles.infoRow}>
+                        <MapPin size={16} color={Colors.textMuted} />
+                        <Text style={[Typography.bodySmall, { color: Colors.textSecondary, marginLeft: Spacing.sm, flex: 1 }]}>
+                            {shop?.address}, {shop?.city}
+                        </Text>
+                    </View>
+
+                    <View style={styles.infoRow}>
+                        <Clock size={16} color={Colors.textMuted} />
+                        <Text style={[Typography.bodySmall, { color: Colors.textSecondary, marginLeft: Spacing.sm }]}>
+                            {shop?.isOpen ? 'Open Now' : 'Closed'}
+                        </Text>
+                    </View>
+
+                    <View style={styles.infoRow}>
+                        <Phone size={16} color={Colors.textMuted} />
+                        <Text style={[Typography.bodySmall, { color: Colors.textSecondary, marginLeft: Spacing.sm }]}>
+                            {shop?.phone}
+                        </Text>
+                    </View>
+
+                    <View style={styles.buttonRow}>
+                        <Button label="Message Shop" variant="outline" onPress={startChat} style={{ flex: 1, marginRight: Spacing.sm }} />
+                        <Button label="Book Now" onPress={startBooking} style={{ flex: 1 }} />
+                    </View>
+
+                    <Text style={[Typography.h3, styles.sectionTitle]}>About</Text>
+                    <Text style={[Typography.body, { color: Colors.textSecondary, lineHeight: 22 }]}>
+                        {shop?.description || 'No description available for this shop.'}
+                    </Text>
+
+                    {barbers.length > 0 && (
+                        <>
+                            <Text style={[Typography.h3, styles.sectionTitle, { marginTop: Spacing.xl }]}>Barbers</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: Spacing.md }}>
+                                {barbers.map(barber => (
+                                    <BarberCard key={barber.id} barber={barber} layout="vertical" />
+                                ))}
+                            </ScrollView>
+                        </>
+                    )}
+
+                    {services.length > 0 && (
+                        <>
+                            <Text style={[Typography.h3, styles.sectionTitle, { marginTop: Spacing.xl }]}>Services</Text>
+                            {services.map(service => (
+                                <ServiceCard key={service.id} service={service} />
+                            ))}
+                        </>
+                    )}
                 </View>
             </ScrollView>
 
-            {/* Bottom Actions */}
-            <BlurView intensity={80} tint="dark" style={styles.bottomBar}>
-                <View style={{ flex: 1, marginRight: Spacing.md }}>
-                    <ThemedText variant="xs" color={Colors.textSecondary}>Next Available</ThemedText>
-                    <ThemedText variant="lg" weight="bold">10:00 AM</ThemedText>
-                </View>
-                <Button label="Book Appointment" style={{ flex: 2 }} />
-            </BlurView>
-        </Container>
+            <View style={styles.footer}>
+                <Button label="Book Appointment" onPress={startBooking} fullWidth disabled={!shop?.isOpen} />
+            </View>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    hero: {
-        height: 350,
-        position: 'relative',
-    },
-    heroImage: {
-        width: '100%',
-        height: '100%',
-    },
-    heroGradient: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: '100%',
-        justifyContent: 'space-between',
-        padding: Spacing.md,
-    },
-    heroHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: Spacing.xl,
-    },
-    iconBtn: {
-        padding: 8,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        borderRadius: BorderRadius.full,
-        marginLeft: Spacing.sm,
-    },
-    heroActions: {
-        flexDirection: 'row',
-    },
-    shopInfo: {
-        marginBottom: Spacing.lg,
-    },
-    ratingRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: Spacing.xs,
-    },
-    addressRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: Spacing.xs,
-    },
-    dot: {
-        width: 4,
-        height: 4,
-        backgroundColor: Colors.white,
-        borderRadius: 2,
-        marginHorizontal: 8,
-        opacity: 0.6,
-    },
-    section: {
-        padding: Spacing.md,
-        marginTop: Spacing.md,
-    },
-    sectionTitle: {
-        marginBottom: Spacing.md,
-    },
-    serviceCard: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: Spacing.md,
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.lg,
-        marginBottom: Spacing.sm,
-        borderWidth: 1,
-        borderColor: Colors.border,
-    },
-    priceTag: {
-        backgroundColor: Colors.primary,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: BorderRadius.md,
-    },
-    barberCard: {
-        marginRight: Spacing.lg,
-        alignItems: 'center',
-    },
-    barberImage: {
-        width: 70,
-        height: 70,
-        borderRadius: 35,
-        borderWidth: 2,
-        borderColor: Colors.primary,
-    },
-    bottomBar: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        flexDirection: 'row',
-        padding: Spacing.md,
-        paddingBottom: 30,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.1)',
-    }
+    container: { flex: 1, backgroundColor: Colors.background },
+    coverImage: { width: '100%', height: 250 },
+    headerButtons: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between' },
+    iconButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
+    content: { padding: Spacing.xl, paddingTop: Spacing.md },
+    titleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.xs },
+    ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md },
+    infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm },
+    buttonRow: { flexDirection: 'row', marginTop: Spacing.md, marginBottom: Spacing.xl },
+    sectionTitle: { color: Colors.text, marginBottom: Spacing.md },
+    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: Spacing.xl, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border },
 });

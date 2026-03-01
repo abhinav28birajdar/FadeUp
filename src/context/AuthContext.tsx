@@ -1,108 +1,93 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { router } from 'expo-router';
-
-type UserType = 'customer' | 'barber' | null;
-
-interface User {
-    id: string;
-    name: string;
-    email: string;
-    type: UserType;
-    avatar?: string;
-}
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
+import { UserProfile, UserRole } from '../types/firestore.types';
 
 interface AuthContextType {
-    user: User | null;
-    isAuthenticated: boolean;
+    user: UserProfile | null;
+    firebaseUser: FirebaseUser | null;
     isLoading: boolean;
-    signIn: (email: string, pass: string) => Promise<void>;
-    signUp: (role: UserType, data: any) => Promise<void>;
-    signOut: () => Promise<void>;
-    userType: UserType;
-    setUserType: (type: UserType) => void;
+    isAuthenticated: boolean;
+    role: UserRole | null;
+    hasSeenOnboarding: boolean | null;
+    completeOnboarding: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({} as AuthContextType);
+const AuthContext = createContext<AuthContextType>({
+    user: null,
+    firebaseUser: null,
+    isLoading: true,
+    isAuthenticated: false,
+    role: null,
+    hasSeenOnboarding: null,
+    completeOnboarding: async () => { },
+});
 
-// Mock user data
-const MOCK_CUSTOMER: User = {
-    id: 'cust_123',
-    name: 'Abhinav Birajdar',
-    email: 'abhinavbirajdar28@gmail.com',
-    type: 'customer',
-    avatar: 'https://i.pravatar.cc/150?u=abhinav',
-};
-
-const MOCK_BARBER: User = {
-    id: 'barb_456',
-    name: 'Master Barber',
-    email: 'barber@fadeup.com',
-    type: 'barber',
-    avatar: 'https://i.pravatar.cc/150?u=barber',
-};
-
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-    const [user, setUser] = useState<User | null>(null);
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+    const [user, setUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [userType, setUserType] = useState<UserType>(null);
+    const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
 
     useEffect(() => {
-        // Simulate checking local storage
-        setTimeout(() => setIsLoading(false), 1000);
-    }, []);
-
-    const signIn = async (email: string, pass: string) => {
-        setIsLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-
-        if (email === 'abhinavbirajdar28@gmail.com' && pass === '12345678') {
-            const type = userType || 'customer';
-            const loggedInUser = type === 'customer' ? MOCK_CUSTOMER : MOCK_BARBER;
-            setUser(loggedInUser);
-            router.replace(type === 'customer' ? '/(tabs)/home' : '/(barber)/dashboard');
-        } else if (email === 'barber@test.com' && pass === '12345678') {
-            setUser(MOCK_BARBER);
-            router.replace('/(barber)/dashboard');
-        } else {
-            alert('Invalid credentials. Use abhinavbirajdar28@gmail.com / 12345678');
-        }
-        setIsLoading(false);
-    };
-
-    const signUp = async (type: UserType, data: any) => {
-        setIsLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        const newUser: User = {
-            id: Math.random().toString(),
-            name: data.fullName || 'New User',
-            email: data.email,
-            type: type,
+        const loadOnboardingState = async () => {
+            try {
+                const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+                const seen = await AsyncStorage.getItem('hasSeenOnboarding');
+                setHasSeenOnboarding(seen === 'true');
+            } catch (e) {
+                setHasSeenOnboarding(false);
+            }
         };
-        setUser(newUser);
-        router.replace(type === 'customer' ? '/(tabs)/home' : '/(barber)/dashboard');
-        setIsLoading(false);
-    };
+        loadOnboardingState();
 
-    const signOut = async () => {
-        setIsLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setUser(null);
-        setUserType(null);
-        router.replace('/onboarding/welcome');
-        setIsLoading(false);
-    };
+        let unsubscribeProfile: () => void;
+
+        const unsubscribeAuth = onAuthStateChanged(auth, async (fUser) => {
+            setFirebaseUser(fUser);
+            if (fUser) {
+                // Fetch or subscribe to user profile
+                const userRef = doc(db, 'users', fUser.uid);
+                unsubscribeProfile = onSnapshot(userRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        setUser(docSnap.data() as UserProfile);
+                    } else {
+                        setUser(null);
+                    }
+                    setIsLoading(false);
+                });
+            } else {
+                setUser(null);
+                if (unsubscribeProfile) {
+                    unsubscribeProfile();
+                }
+                setIsLoading(false);
+            }
+        });
+
+        return () => {
+            unsubscribeAuth();
+            if (unsubscribeProfile) {
+                unsubscribeProfile();
+            }
+        };
+    }, []);
 
     return (
         <AuthContext.Provider
             value={{
                 user,
-                isAuthenticated: !!user,
+                firebaseUser,
                 isLoading,
-                signIn,
-                signUp,
-                signOut,
-                userType,
-                setUserType,
+                isAuthenticated: !!firebaseUser && !!user && firebaseUser.emailVerified,
+                role: user?.role || null,
+                hasSeenOnboarding,
+                completeOnboarding: async () => {
+                    const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+                    await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+                    setHasSeenOnboarding(true);
+                },
             }}
         >
             {children}
@@ -110,4 +95,4 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuthContext = () => useContext(AuthContext);

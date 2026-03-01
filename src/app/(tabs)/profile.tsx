@@ -1,173 +1,143 @@
-import React from 'react';
-import { StyleSheet, View, Image, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Container } from '../../components/ui/Container';
-import { ThemedText } from '../../components/ui/ThemedText';
-import { Button } from '../../components/ui/Button';
 import { Colors } from '../../constants/colors';
-import { Spacing, BorderRadius } from '../../constants/spacing';
-import { User, Settings, CreditCard, Bell, LogOut, ChevronRight, Shield, HelpCircle } from 'lucide-react-native';
-
-const MENU_ITEMS = [
-    { label: 'Edit Profile', icon: User, route: '/profile/edit' },
-    { label: 'Payment Methods', icon: CreditCard, route: '/profile/payments' },
-    { label: 'Notifications', icon: Bell, route: '/profile/notifications' },
-    { label: 'Security', icon: Shield, route: '/profile/security' },
-    { label: 'Help & Support', icon: HelpCircle, route: '/profile/support' },
-];
+import { Typography } from '../../constants/typography';
+import { Spacing } from '../../constants/spacing';
+import { useAuthContext } from '../../context/AuthContext';
+import { authService } from '../../services/auth.service';
+import { userService } from '../../services/user.service';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
+import { Avatar } from '../../components/ui/Avatar';
+import { Button } from '../../components/ui/Button';
+import { useImagePicker } from '../../hooks/useImagePicker';
+import { Camera, ChevronRight, LogOut, Settings, Bell, Headset, Trash2, Edit2 } from 'lucide-react-native';
+import { Input } from '../../components/ui/Input';
+import { useToastStore } from '../../components/ui/Toast';
 
 export default function ProfileScreen() {
+    const { user } = useAuthContext();
     const router = useRouter();
+    const { pickImage, uploadToStorage, isUploading } = useImagePicker();
+    const { showToast } = useToastStore();
+
+    const [isEditing, setIsEditing] = useState(false);
+    const [displayName, setDisplayName] = useState(user?.displayName || '');
+    const [phone, setPhone] = useState(user?.phone || '');
+
+    const handleUpdateImage = async () => {
+        const result = await pickImage();
+        if (!result.canceled && result.assets[0] && user) {
+            try {
+                const url = await uploadToStorage(result.assets[0].uri, `users/${user.uid}/profile.jpg`);
+                await userService.updateProfile(user.uid, { photoURL: url });
+                await authService.updateUserProfile({ photoURL: url });
+                showToast({ message: 'Profile photo updated', type: 'success' });
+            } catch (e) {
+                showToast({ message: 'Failed to upload image', type: 'error' });
+            }
+        }
+    };
+
+    const handleSaveProfile = async () => {
+        if (!user) return;
+        try {
+            await userService.updateProfile(user.uid, { displayName, phone });
+            await authService.updateUserProfile({ displayName });
+            setIsEditing(false);
+            showToast({ message: 'Profile updated', type: 'success' });
+        } catch (e) {
+            showToast({ message: 'Failed to update profile', type: 'error' });
+        }
+    };
 
     const handleLogout = () => {
-        router.replace('/(auth)/welcome');
+        Alert.alert('Logout', 'Are you sure you want to sign out?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Logout', style: 'destructive', onPress: () => authService.logout() }
+        ]);
     };
 
     return (
-        <Container>
-            <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <ThemedText variant="xxl" weight="bold">Profile</ThemedText>
-                    <TouchableOpacity>
-                        <Settings size={24} color={Colors.text} />
+        <View style={styles.container}>
+            <ScreenHeader title="Profile" showBack={false} />
+
+            <ScrollView contentContainerStyle={styles.content}>
+                <View style={styles.profileHeader}>
+                    <TouchableOpacity onPress={handleUpdateImage} disabled={isUploading}>
+                        <View style={styles.avatarWrapper}>
+                            <Avatar url={user?.photoURL} name={user?.displayName || ''} size="lg" />
+                            <View style={styles.editBadge}>
+                                <Camera size={14} color={Colors.white} />
+                            </View>
+                        </View>
                     </TouchableOpacity>
+                    <Text style={[Typography.h2, { color: Colors.text, marginTop: Spacing.md }]}>{user?.displayName}</Text>
+                    <Text style={[Typography.body, { color: Colors.textSecondary }]}>{user?.email}</Text>
+                    <Text style={[Typography.caption, { color: Colors.primary, marginTop: Spacing.xs, textTransform: 'uppercase' }]}>{user?.role}</Text>
                 </View>
 
-                {/* Profile Card */}
-                <View style={styles.profileCard}>
-                    <Image
-                        source={{ uri: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200' }}
-                        style={styles.avatar}
-                    />
-                    <View style={styles.profileInfo}>
-                        <ThemedText variant="xl" weight="bold">Sarah Johnson</ThemedText>
-                        <ThemedText variant="sm" color={Colors.textSecondary}>sarah.j@example.com</ThemedText>
-                        <View style={styles.membershipBadge}>
-                            <ThemedText variant="xs" color={Colors.black} weight="bold">GOLD MEMBER</ThemedText>
+                {isEditing ? (
+                    <View style={styles.editForm}>
+                        <Input label="Name" value={displayName} onChangeText={setDisplayName} />
+                        <Input label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+                        <View style={{ flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.md }}>
+                            <Button label="Cancel" variant="outline" onPress={() => setIsEditing(false)} style={{ flex: 1 }} />
+                            <Button label="Save" onPress={handleSaveProfile} style={{ flex: 1 }} />
                         </View>
                     </View>
-                </View>
-
-                {/* Stats */}
-                <View style={styles.statsContainer}>
-                    <View style={styles.statItem}>
-                        <ThemedText variant="xl" weight="bold" color={Colors.primary}>12</ThemedText>
-                        <ThemedText variant="xs" color={Colors.textSecondary}>Bookings</ThemedText>
-                    </View>
-                    <View style={styles.statLine} />
-                    <View style={styles.statItem}>
-                        <ThemedText variant="xl" weight="bold" color={Colors.primary}>4</ThemedText>
-                        <ThemedText variant="xs" color={Colors.textSecondary}>Reviews</ThemedText>
-                    </View>
-                    <View style={styles.statLine} />
-                    <View style={styles.statItem}>
-                        <ThemedText variant="xl" weight="bold" color={Colors.primary}>2</ThemedText>
-                        <ThemedText variant="xs" color={Colors.textSecondary}>Favorites</ThemedText>
-                    </View>
-                </View>
-
-                {/* Menu */}
-                <View style={styles.menuContainer}>
-                    {MENU_ITEMS.map((item, index) => (
-                        <TouchableOpacity key={index} style={styles.menuItem}>
-                            <View style={styles.menuIcon}>
-                                <item.icon size={20} color={Colors.text} />
-                            </View>
-                            <ThemedText variant="md" style={styles.menuLabel}>{item.label}</ThemedText>
-                            <ChevronRight size={20} color={Colors.textTertiary} />
+                ) : (
+                    <View style={styles.section}>
+                        <TouchableOpacity style={styles.menuItem} onPress={() => setIsEditing(true)}>
+                            <View style={styles.menuIcon}><Edit2 size={20} color={Colors.text} /></View>
+                            <Text style={[Typography.body, styles.menuText]}>Edit Profile</Text>
+                            <ChevronRight size={20} color={Colors.textMuted} />
                         </TouchableOpacity>
-                    ))}
-                </View>
 
-                {/* Logout */}
-                <Button
-                    label="Log Out"
-                    variant="outline"
-                    style={styles.logoutBtn}
-                    onPress={handleLogout}
-                    leftIcon={<LogOut size={20} color={Colors.primary} />}
-                />
+                        <TouchableOpacity style={styles.menuItem}>
+                            <View style={styles.menuIcon}><Bell size={20} color={Colors.text} /></View>
+                            <Text style={[Typography.body, styles.menuText]}>Notifications</Text>
+                            <Switch value={true} trackColor={{ true: Colors.primary, false: Colors.border }} />
+                        </TouchableOpacity>
 
-                <ThemedText variant="xs" color={Colors.textTertiary} centered style={{ marginTop: Spacing.lg, marginBottom: Spacing.xl }}>
-                    Version 1.0.0
-                </ThemedText>
+                        <TouchableOpacity style={styles.menuItem}>
+                            <View style={styles.menuIcon}><Headset size={20} color={Colors.text} /></View>
+                            <Text style={[Typography.body, styles.menuText]}>Support</Text>
+                            <ChevronRight size={20} color={Colors.textMuted} />
+                        </TouchableOpacity>
 
+                        <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+                            <View style={styles.menuIcon}><LogOut size={20} color={Colors.error} /></View>
+                            <Text style={[Typography.body, styles.menuText, { color: Colors.error }]}>Log Out</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </ScrollView>
-        </Container>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: Spacing.md,
-        marginBottom: Spacing.lg,
-    },
-    profileCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: Spacing.md,
-        marginBottom: Spacing.xl,
-    },
-    avatar: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        borderWidth: 2,
-        borderColor: Colors.primary,
-    },
-    profileInfo: {
-        marginLeft: Spacing.lg,
-    },
-    membershipBadge: {
+    container: { flex: 1, backgroundColor: Colors.background },
+    content: { padding: Spacing.xl },
+    profileHeader: { alignItems: 'center', marginBottom: Spacing.xl },
+    avatarWrapper: { position: 'relative' },
+    editBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
         backgroundColor: Colors.primary,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 4,
-        marginTop: 8,
-        alignSelf: 'flex-start',
-    },
-    statsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        backgroundColor: Colors.surface,
-        marginHorizontal: Spacing.md,
-        padding: Spacing.lg,
-        borderRadius: BorderRadius.lg,
-        marginBottom: Spacing.xl,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 2,
+        borderColor: Colors.background,
     },
-    statItem: {
-        alignItems: 'center',
-    },
-    statLine: {
-        width: 1,
-        height: 24,
-        backgroundColor: Colors.border,
-    },
-    menuContainer: {
-        paddingHorizontal: Spacing.md,
-        marginBottom: Spacing.xl,
-    },
-    menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: Spacing.lg,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-    },
-    menuIcon: {
-        width: 32,
-        alignItems: 'center',
-    },
-    menuLabel: {
-        flex: 1,
-        marginLeft: Spacing.md,
-    },
-    logoutBtn: {
-        marginHorizontal: Spacing.md,
-    }
+    editForm: { backgroundColor: Colors.surface, padding: Spacing.xl, borderRadius: Spacing.borderRadius.lg, borderWidth: 1, borderColor: Colors.border },
+    section: { backgroundColor: Colors.surface, borderRadius: Spacing.borderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
+    menuItem: { flexDirection: 'row', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
+    menuIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surfaceElevated, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.md },
+    menuText: { flex: 1, color: Colors.text },
 });

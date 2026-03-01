@@ -1,57 +1,62 @@
 import React from 'react';
-import { Image, ImageStyle, StyleProp, View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image, StyleProp, ViewStyle, ImageStyle } from 'react-native';
 import { Colors } from '../../constants/colors';
-import { ThemedText } from './ThemedText';
-import { User } from 'lucide-react-native';
+import { Typography } from '../../constants/typography';
 
 interface AvatarProps {
-    source?: string | { uri: string };
-    size?: number;
-    name?: string; // For initials if no image
-    style?: StyleProp<ImageStyle>;
+    url?: string | null;
+    name: string;
+    size?: 'sm' | 'md' | 'lg';
+    style?: StyleProp<ViewStyle>;
 }
 
-export function Avatar({ source, size = 48, name, style }: AvatarProps) {
-    const borderRadius = size / 2;
-    const fontSize = size * 0.4;
+export function Avatar({ url, name, size = 'md', style }: AvatarProps) {
+    const getDims = () => {
+        switch (size) {
+            case 'sm': return 32;
+            case 'md': return 48;
+            case 'lg': return 80;
+        }
+    };
 
-    if (source) {
+    const getFontSize = () => {
+        switch (size) {
+            case 'sm': return 12;
+            case 'md': return 18;
+            case 'lg': return 32;
+        }
+    };
+
+    const dim = getDims();
+    const initials = name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U';
+
+    if (url) {
         return (
             <Image
-                source={typeof source === 'string' ? { uri: source } : source}
-                style={[
-                    { width: size, height: size, borderRadius },
-                    style
-                ]}
+                source={{ uri: url }}
+                style={[{ width: dim, height: dim, borderRadius: dim / 2, backgroundColor: Colors.surfaceElevated }, style as ImageStyle]}
             />
         );
     }
 
     return (
-        <View
-            style={[
-                styles.placeholder,
-                { width: size, height: size, borderRadius },
-                style
-            ]}
-        >
-            {name ? (
-                <ThemedText style={{ fontSize, color: Colors.primary, fontWeight: 'bold' }}>
-                    {name.charAt(0).toUpperCase()}
-                </ThemedText>
-            ) : (
-                <User size={size * 0.6} color={Colors.primary} />
-            )}
+        <View style={[
+            styles.container,
+            { width: dim, height: dim, borderRadius: dim / 2, backgroundColor: Colors.surfaceElevated },
+            style
+        ]}>
+            <Text style={[Typography.h3, { fontSize: getFontSize(), color: Colors.primary }]}>
+                {initials}
+            </Text>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    placeholder: {
-        backgroundColor: Colors.surfaceLight,
-        justifyContent: 'center',
+    container: {
         alignItems: 'center',
+        justifyContent: 'center',
         borderWidth: 1,
         borderColor: Colors.border,
-    }
+    },
 });

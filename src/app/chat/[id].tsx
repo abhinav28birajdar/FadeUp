@@ -1,151 +1,135 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, FlatList, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Container } from '../../components/ui/Container';
-import { ThemedText } from '../../components/ui/ThemedText';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, Text } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { Spacing, BorderRadius } from '../../constants/spacing';
-import { Send, MoveLeft, MoreVertical } from 'lucide-react-native';
-
-const MESSAGES = [
-    { id: '1', text: 'Hi! Is my appointment confirmed?', time: '10:00 AM', sender: 'me' },
-    { id: '2', text: 'Yes, looking forward to seeing you!', time: '10:05 AM', sender: 'them' },
-];
+import { Spacing } from '../../constants/spacing';
+import { ChatMessage, ChatRoom } from '../../types/firestore.types';
+import { chatService } from '../../services/chat.service';
+import { useAuthContext } from '../../context/AuthContext';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
+import { ChatBubble } from '../../components/ui/ChatBubble';
+import { Input } from '../../components/ui/Input';
+import { Send, Image as ImageIcon } from 'lucide-react-native';
+import { useImagePicker } from '../../hooks/useImagePicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ChatRoomScreen() {
     const { id } = useLocalSearchParams();
-    const router = useRouter();
-    const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState(MESSAGES);
+    const roomId = id as string;
+    const { user } = useAuthContext();
+    const { pickImage } = useImagePicker();
+    const insets = useSafeAreaInsets();
 
-    const handleSend = () => {
-        if (!message) return;
-        setMessages([...messages, { id: Date.now().toString(), text: message, time: 'Now', sender: 'me' }]);
-        setMessage('');
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [text, setText] = useState('');
+    const [partnerName, setPartnerName] = useState('Chat');
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!user) return;
+        const unsub = chatService.subscribeToMessages(roomId, (data) => {
+            setMessages(data);
+        });
+
+        chatService.markMessagesRead(roomId, user.uid);
+
+        return () => unsub();
+    }, [roomId, user]);
+
+    // Simple focus listener mock
+    useEffect(() => {
+        if (!user) return;
+        chatService.markMessagesRead(roomId, user.uid);
+    }, [user, messages.length]);
+
+    const handleSend = async () => {
+        if (!user) return;
+
+        if (selectedImage) {
+            await chatService.sendImageMessage(roomId, user.uid, user.displayName, selectedImage);
+            setSelectedImage(null);
+            return;
+        }
+
+        if (text.trim()) {
+            await chatService.sendMessage(roomId, user.uid, user.displayName, text.trim());
+            setText('');
+        }
     };
 
-    const renderItem = ({ item }: { item: typeof MESSAGES[0] }) => {
-        const isMe = item.sender === 'me';
-        return (
-            <View style={[styles.bubbleWrapper, isMe ? styles.myBubbleWrapper : styles.theirBubbleWrapper]}>
-                <View style={[styles.bubble, isMe ? styles.myBubble : styles.theirBubble]}>
-                    <ThemedText color={isMe ? Colors.black : Colors.text}>{item.text}</ThemedText>
-                </View>
-                <ThemedText variant="xs" color={Colors.textTertiary} style={styles.time}>{item.time}</ThemedText>
-            </View>
-        );
+    const handlePickImage = async () => {
+        const result = await pickImage();
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+            setSelectedImage(result.assets[0].uri);
+        }
     };
 
     return (
-        <Container padding={false}>
-            {/* Custom Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                    <MoveLeft size={24} color={Colors.text} />
-                </TouchableOpacity>
-                <View style={styles.headerInfo}>
-                    <ThemedText variant="lg" weight="bold">Fade Masters</ThemedText>
-                    <ThemedText variant="xs" color={Colors.success}>Online</ThemedText>
-                </View>
-                <TouchableOpacity>
-                    <MoreVertical size={24} color={Colors.text} />
-                </TouchableOpacity>
-            </View>
+        <View style={styles.container}>
+            <ScreenHeader title={partnerName} />
 
-            <FlatList
-                data={messages}
-                renderItem={renderItem}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.list}
-            />
+            <KeyboardAvoidingView
+                style={styles.keyboardView}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+                <FlatList
+                    data={messages}
+                    keyExtractor={(item) => item.id || Math.random().toString()}
+                    contentContainerStyle={styles.list}
+                    inverted
+                    showsVerticalScrollIndicator={false}
+                    renderItem={({ item }) => (
+                        <ChatBubble message={item} isOwn={item.senderId === user?.uid} />
+                    )}
+                />
 
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-                <View style={styles.inputContainer}>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Type a message..."
-                        placeholderTextColor={Colors.textTertiary}
-                        value={message}
-                        onChangeText={setMessage}
-                    />
-                    <TouchableOpacity style={styles.sendBtn} onPress={handleSend}>
-                        <Send size={20} color={Colors.black} />
+                <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
+                    <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage}>
+                        <ImageIcon size={24} color={selectedImage ? Colors.primary : Colors.textMuted} />
+                    </TouchableOpacity>
+                    <View style={styles.inputWrapper}>
+                        <Input
+                            placeholder="Type a message..."
+                            value={text}
+                            onChangeText={setText}
+                            multiline
+                            style={{ maxHeight: 100 }}
+                        />
+                    </View>
+                    <TouchableOpacity
+                        style={styles.sendBtn}
+                        onPress={handleSend}
+                        disabled={!text.trim() && !selectedImage}
+                    >
+                        <Send size={20} color={(text.trim() || selectedImage) ? Colors.primary : Colors.textMuted} />
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
-        </Container>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-        backgroundColor: Colors.surface,
-    },
-    backBtn: {
-        marginRight: Spacing.md,
-    },
-    headerInfo: {
-        flex: 1,
-    },
-    list: {
-        padding: Spacing.md,
-    },
-    bubbleWrapper: {
-        marginBottom: Spacing.md,
-        maxWidth: '80%',
-    },
-    myBubbleWrapper: {
-        alignSelf: 'flex-end',
-        alignItems: 'flex-end',
-    },
-    theirBubbleWrapper: {
-        alignSelf: 'flex-start',
-        alignItems: 'flex-start',
-    },
-    bubble: {
-        padding: Spacing.md,
-        borderRadius: BorderRadius.lg,
-    },
-    myBubble: {
-        backgroundColor: Colors.primary,
-        borderBottomRightRadius: 0,
-    },
-    theirBubble: {
-        backgroundColor: Colors.surface,
-        borderBottomLeftRadius: 0,
-    },
-    time: {
-        marginTop: 4,
-        marginHorizontal: 4,
-    },
+    container: { flex: 1, backgroundColor: Colors.background },
+    keyboardView: { flex: 1 },
+    list: { padding: Spacing.md, flexGrow: 1 },
     inputContainer: {
         flexDirection: 'row',
-        padding: Spacing.md,
+        alignItems: 'center',
         backgroundColor: Colors.surface,
-        alignItems: 'center',
-        borderTopWidth: 1,
-        borderTopColor: Colors.border,
-    },
-    input: {
-        flex: 1,
-        backgroundColor: Colors.background,
-        borderRadius: BorderRadius.full,
         paddingHorizontal: Spacing.md,
-        paddingVertical: 10,
-        color: Colors.text,
-        marginRight: Spacing.md,
+        paddingTop: Spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: Colors.border
     },
+    attachBtn: { padding: Spacing.sm },
+    inputWrapper: { flex: 1, marginHorizontal: Spacing.sm, paddingBottom: 15 },
     sendBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: Colors.primary,
+        padding: Spacing.sm,
+        backgroundColor: Colors.surfaceElevated,
+        borderRadius: 20,
+        width: 40, height: 40,
         justifyContent: 'center',
-        alignItems: 'center',
-    }
+        alignItems: 'center'
+    },
 });

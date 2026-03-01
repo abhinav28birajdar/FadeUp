@@ -1,9 +1,9 @@
+import React from 'react';
 import { Tabs } from 'expo-router';
+import { LayoutDashboard, Users, Calendar, DollarSign, Settings } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
-import { LayoutDashboard, Clock, Calendar, Store, MoreHorizontal } from 'lucide-react-native';
-import { Platform } from 'react-native';
 
-export default function BarberLayout() {
+export default function BarberTabsLayout() {
     return (
         <Tabs
             screenOptions={{
@@ -11,51 +11,46 @@ export default function BarberLayout() {
                 tabBarStyle: {
                     backgroundColor: Colors.surface,
                     borderTopColor: Colors.border,
-                    height: Platform.OS === 'ios' ? 85 : 65,
-                    paddingBottom: Platform.OS === 'ios' ? 30 : 10,
-                    paddingTop: 10,
+                    height: 60,
+                    paddingBottom: 10,
                 },
                 tabBarActiveTintColor: Colors.primary,
-                tabBarInactiveTintColor: Colors.textTertiary,
-                tabBarLabelStyle: {
-                    fontSize: 10,
-                    fontWeight: '500',
-                },
+                tabBarInactiveTintColor: Colors.textMuted,
             }}
         >
             <Tabs.Screen
-                name="dashboard/index"
+                name="dashboard"
                 options={{
                     title: 'Dashboard',
                     tabBarIcon: ({ color, size }) => <LayoutDashboard size={size} color={color} />,
                 }}
             />
             <Tabs.Screen
-                name="queue/index"
+                name="queue"
                 options={{
                     title: 'Queue',
-                    tabBarIcon: ({ color, size }) => <Clock size={size} color={color} />,
+                    tabBarIcon: ({ color, size }) => <Users size={size} color={color} />,
                 }}
             />
             <Tabs.Screen
-                name="bookings/index"
+                name="calendar"
                 options={{
-                    title: 'Bookings',
+                    title: 'Calendar',
                     tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
                 }}
             />
             <Tabs.Screen
-                name="shop/index"
+                name="earnings"
                 options={{
-                    title: 'Shop',
-                    tabBarIcon: ({ color, size }) => <Store size={size} color={color} />,
+                    title: 'Earnings',
+                    tabBarIcon: ({ color, size }) => <DollarSign size={size} color={color} />,
                 }}
             />
             <Tabs.Screen
-                name="more/index"
+                name="settings"
                 options={{
-                    title: 'More',
-                    tabBarIcon: ({ color, size }) => <MoreHorizontal size={size} color={color} />,
+                    title: 'Settings',
+                    tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
                 }}
             />
         </Tabs>
