@@ -6,9 +6,11 @@ import { Spacing } from '../../constants/spacing';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Button } from '../../components/ui/Button';
 import { authService } from '../../services/auth.service';
-import { LogOut, ChevronRight, Wrench, Clock, MapPin } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Wrench, Clock, MapPin, Power, ChevronRight, ShieldCheck, Bell, HelpCircle, Wallet, Lock } from 'lucide-react-native';
 
 export default function SettingsScreen() {
+    const router = useRouter();
     const [isAvailable, setIsAvailable] = useState(true);
 
     return (
@@ -31,19 +33,33 @@ export default function SettingsScreen() {
 
                 <Text style={[Typography.label, styles.sectionTitle]}>SHOP MANAGEMENT</Text>
                 <View style={styles.section}>
-                    <TouchableOpacity style={styles.menuItem}>
+                    <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(barber)/services')}>
                         <Wrench size={20} color={Colors.textMuted} />
                         <Text style={[Typography.body, styles.menuText]}>Services & Pricing</Text>
                         <ChevronRight size={20} color={Colors.border} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.menuItem}>
+                    <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(barber)/hours')}>
                         <Clock size={20} color={Colors.textMuted} />
                         <Text style={[Typography.body, styles.menuText]}>Working Hours</Text>
                         <ChevronRight size={20} color={Colors.border} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.menuItem}>
+                    <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(barber)/shop-details')}>
                         <MapPin size={20} color={Colors.textMuted} />
                         <Text style={[Typography.body, styles.menuText]}>Shop Details</Text>
+                        <ChevronRight size={20} color={Colors.border} />
+                    </TouchableOpacity>
+                </View>
+
+                <Text style={[Typography.label, styles.sectionTitle]}>ACCOUNT</Text>
+                <View style={styles.section}>
+                    <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(barber)/wallet')}>
+                        <Wallet size={20} color={Colors.textMuted} />
+                        <Text style={[Typography.body, styles.menuText]}>My Wallet</Text>
+                        <ChevronRight size={20} color={Colors.border} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => router.push('/(barber)/security')}>
+                        <Lock size={20} color={Colors.textMuted} />
+                        <Text style={[Typography.body, styles.menuText]}>Security & Password</Text>
                         <ChevronRight size={20} color={Colors.border} />
                     </TouchableOpacity>
                 </View>

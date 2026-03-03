@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -28,7 +28,7 @@ export default function ChatScreen() {
         return () => unsub();
     }, [user]);
 
-    const renderItem = ({ item }: { item: ChatRoom }) => {
+    const renderItem = useCallback(({ item }: { item: ChatRoom }) => {
         if (!user) return null;
         const partnerId = item.participantIds.find(id => id !== user.uid) || item.participantIds[0];
         const partnerName = item.participantNames[partnerId] || 'Unknown';
@@ -65,7 +65,7 @@ export default function ChatScreen() {
                 </View>
             </TouchableOpacity>
         );
-    };
+    }, [user, router]);
 
     return (
         <View style={styles.container}>

@@ -1,6 +1,5 @@
-import { initializeApp, getApps } from 'firebase/app';
-// @ts-expect-error type missing in firebase
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,11 +13,19 @@ const firebaseConfig = {
     appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID!,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-export const auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-});
+// Guard against double-initialization of auth (hot reload / fast refresh safe)
+export const auth = (() => {
+    try {
+        return initializeAuth(app, {
+            persistence: getReactNativePersistence(AsyncStorage),
+        });
+    } catch {
+        // Auth already initialized (e.g. due to hot reload)
+        return getAuth(app);
+    }
+})();
 
 export const db = getFirestore(app);
 export const storage = getStorage(app);

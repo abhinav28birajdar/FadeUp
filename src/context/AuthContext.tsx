@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from '../config/firebase';
 import { UserProfile, UserRole } from '../types/firestore.types';
 
@@ -33,7 +34,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         const loadOnboardingState = async () => {
             try {
-                const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
                 const seen = await AsyncStorage.getItem('hasSeenOnboarding');
                 setHasSeenOnboarding(seen === 'true');
             } catch (e) {
@@ -42,12 +42,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         loadOnboardingState();
 
-        let unsubscribeProfile: () => void;
+        let unsubscribeProfile: (() => void) | undefined;
 
         const unsubscribeAuth = onAuthStateChanged(auth, async (fUser) => {
             setFirebaseUser(fUser);
             if (fUser) {
-                // Fetch or subscribe to user profile
+                // Subscribe to user profile for real-time updates
                 const userRef = doc(db, 'users', fUser.uid);
                 unsubscribeProfile = onSnapshot(userRef, (docSnap) => {
                     if (docSnap.exists()) {
@@ -55,6 +55,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     } else {
                         setUser(null);
                     }
+                    setIsLoading(false);
+                }, (error) => {
+                    console.error('Profile subscription error:', error);
                     setIsLoading(false);
                 });
             } else {
@@ -74,20 +77,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, []);
 
+    const completeOnboarding = async () => {
+        try {
+            await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+            setHasSeenOnboarding(true);
+        } catch (e) {
+            console.error('Failed to save onboarding state', e);
+        }
+    };
+
     return (
         <AuthContext.Provider
             value={{
                 user,
                 firebaseUser,
                 isLoading,
-                isAuthenticated: !!firebaseUser && !!user && firebaseUser.emailVerified,
+                isAuthenticated: !!firebaseUser && !!user,
                 role: user?.role || null,
                 hasSeenOnboarding,
-                completeOnboarding: async () => {
-                    const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
-                    await AsyncStorage.setItem('hasSeenOnboarding', 'true');
-                    setHasSeenOnboarding(true);
-                },
+                completeOnboarding,
             }}
         >
             {children}

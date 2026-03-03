@@ -1,6 +1,6 @@
 import 'react-native-reanimated';
 import { useEffect, useState } from 'react';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuthContext } from '../context/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { Toast } from '../components/ui/Toast';
+import { OfflineScreen } from '../components/ui/OfflineScreen';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 import { Colors } from '../constants/colors';
 
@@ -51,16 +52,28 @@ function RootLayoutNav() {
             } else if (isBarber && !inBarberGroup && !inAdminGroup) {
                 router.replace('/(barber)/dashboard');
             } else if (role === 'customer' && !inTabsGroup && !inAuthGroup && !inBarberGroup && !inAdminGroup) {
-                // Only redirect to tabs if not already navigating somewhere allowed for customers like chat
-                // We will default to home if they are coming from auth
-                if (inAuthGroup || segments.length <= 0) {
-                    router.replace('/(tabs)/home');
-                }
+                router.replace('/(tabs)/home');
             }
         }
-    }, [isAuthenticated, isLoading, segments, hasSeenOnboarding, role]);
+    }, [isAuthenticated, isLoading, segments, hasSeenOnboarding, role, router]);
 
-    return <Slot />;
+    return (
+        <Stack
+            screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: Colors.background }
+            }}
+        >
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(barber)" />
+            <Stack.Screen name="onboarding" />
+            <Stack.Screen name="notifications" options={{ headerShown: false }} />
+            <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="shop/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="booking" options={{ headerShown: false }} />
+        </Stack>
+    );
 }
 
 export default function RootLayout() {
@@ -82,6 +95,7 @@ export default function RootLayout() {
                     <AuthProvider>
                         <StatusBar style="light" />
                         <RootLayoutManager fontsLoaded={fontsLoaded} />
+                        <OfflineScreen />
                         <Toast />
                     </AuthProvider>
                 </SafeAreaProvider>

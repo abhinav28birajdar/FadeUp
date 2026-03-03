@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Spacing } from '../constants/spacing';
@@ -13,25 +13,27 @@ import { useNotificationStore } from '../store/notification.store';
 
 export default function NotificationsScreen() {
     const { user } = useAuthContext();
+    const { setNotifications } = useNotificationStore();
 
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [notifications, setLocalNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         if (!user) return;
         const unsub = notificationService.subscribeToNotifications(user.uid, (data) => {
-            setNotifications(data);
+            setLocalNotifications(data);
+            setNotifications(data); // sync global store for badge count
             setIsLoading(false);
-
         });
         return () => unsub();
-    }, [user?.uid]);
+    }, [user?.uid, setNotifications]);
 
-    const handleRead = async (notification: Notification) => {
-        if (!notification.isRead) {
-            await notificationService.markAsRead(notification.id!);
-        }
-    };
+    const handleRead = useCallback(async (notification: Notification) => {
+        if (!user || notification.isRead) return;
+        try {
+            await notificationService.markAsRead(user.uid, notification.id!);
+        } catch { /* silently ignore */ }
+    }, [user]);
 
     return (
         <View style={styles.container}>
@@ -39,7 +41,7 @@ export default function NotificationsScreen() {
 
             <FlatList
                 data={notifications}
-                keyExtractor={item => item.id!}
+                keyExtractor={(item) => item.id!}
                 contentContainerStyle={styles.list}
                 renderItem={({ item }) => (
                     <NotificationItem
@@ -49,7 +51,11 @@ export default function NotificationsScreen() {
                 )}
                 ListEmptyComponent={() => (
                     !isLoading ? (
-                        <EmptyState icon={<Bell size={48} color={Colors.textMuted} />} title="No notifications" description="You're all caught up for now." />
+                        <EmptyState
+                            icon={<Bell size={48} color={Colors.textMuted} />}
+                            title="No notifications"
+                            description="You're all caught up for now."
+                        />
                     ) : null
                 )}
             />
@@ -59,5 +65,5 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
-    list: { flexGrow: 1 },
+    list: { flexGrow: 1, paddingBottom: Spacing.xl },
 });

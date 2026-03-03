@@ -11,7 +11,7 @@ import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { useImagePicker } from '../../hooks/useImagePicker';
-import { Camera, ChevronRight, LogOut, Settings, Bell, Headset, Trash2, Edit2 } from 'lucide-react-native';
+import { Camera, ChevronRight, LogOut, Settings, Bell, Headset, Trash2, Edit2, Wallet, ShieldCheck, Mail, LayoutDashboard } from 'lucide-react-native';
 import { Input } from '../../components/ui/Input';
 import { useToastStore } from '../../components/ui/Toast';
 
@@ -24,6 +24,7 @@ export default function ProfileScreen() {
     const [isEditing, setIsEditing] = useState(false);
     const [displayName, setDisplayName] = useState(user?.displayName || '');
     const [phone, setPhone] = useState(user?.phone || '');
+    const [email, setEmail] = useState(user?.email || '');
 
     const handleUpdateImage = async () => {
         const result = await pickImage();
@@ -42,7 +43,7 @@ export default function ProfileScreen() {
     const handleSaveProfile = async () => {
         if (!user) return;
         try {
-            await userService.updateProfile(user.uid, { displayName, phone });
+            await userService.updateProfile(user.uid, { displayName, phone, email });
             await authService.updateUserProfile({ displayName });
             setIsEditing(false);
             showToast({ message: 'Profile updated', type: 'success' });
@@ -80,6 +81,7 @@ export default function ProfileScreen() {
                 {isEditing ? (
                     <View style={styles.editForm}>
                         <Input label="Name" value={displayName} onChangeText={setDisplayName} />
+                        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" />
                         <Input label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
                         <View style={{ flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.md }}>
                             <Button label="Cancel" variant="outline" onPress={() => setIsEditing(false)} style={{ flex: 1 }} />
@@ -88,25 +90,48 @@ export default function ProfileScreen() {
                     </View>
                 ) : (
                     <View style={styles.section}>
+                        {user?.role !== 'customer' && (
+                            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(barber)/dashboard')}>
+                                <View style={styles.menuIcon}><LayoutDashboard size={20} color={Colors.primary} /></View>
+                                <Text style={[Typography.body, styles.menuText, { color: Colors.primary, fontWeight: '700' }]}>Barber Dashboard</Text>
+                                <ChevronRight size={20} color={Colors.primary} />
+                            </TouchableOpacity>
+                        )}
+
                         <TouchableOpacity style={styles.menuItem} onPress={() => setIsEditing(true)}>
                             <View style={styles.menuIcon}><Edit2 size={20} color={Colors.text} /></View>
                             <Text style={[Typography.body, styles.menuText]}>Edit Profile</Text>
                             <ChevronRight size={20} color={Colors.textMuted} />
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.menuItem}>
-                            <View style={styles.menuIcon}><Bell size={20} color={Colors.text} /></View>
-                            <Text style={[Typography.body, styles.menuText]}>Notifications</Text>
-                            <Switch value={true} trackColor={{ true: Colors.primary, false: Colors.border }} />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.menuItem}>
-                            <View style={styles.menuIcon}><Headset size={20} color={Colors.text} /></View>
-                            <Text style={[Typography.body, styles.menuText]}>Support</Text>
+                        <TouchableOpacity style={styles.menuItem} onPress={() => router.push(user?.role === 'customer' ? '/wallet/customer' : '/(barber)/wallet' as any)}>
+                            <View style={styles.menuIcon}><Wallet size={20} color={Colors.text} /></View>
+                            <Text style={[Typography.body, styles.menuText]}>My Wallet</Text>
                             <ChevronRight size={20} color={Colors.textMuted} />
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+                        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(barber)/security')}>
+                            <View style={styles.menuIcon}><ShieldCheck size={20} color={Colors.text} /></View>
+                            <Text style={[Typography.body, styles.menuText]}>Security & Password</Text>
+                            <ChevronRight size={20} color={Colors.textMuted} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/notifications')}>
+                            <View style={styles.menuIcon}><Bell size={20} color={Colors.text} /></View>
+                            <Text style={[Typography.body, styles.menuText]}>Notifications</Text>
+                            <ChevronRight size={20} color={Colors.textMuted} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert('Support', 'Contact us at: abhinav28.birajdar@gmail.com')}>
+                            <View style={styles.menuIcon}><Headset size={20} color={Colors.text} /></View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[Typography.body, styles.menuText]}>Support</Text>
+                                <Text style={[Typography.caption, { color: Colors.textMuted, marginLeft: Spacing.md }]}>abhinav28.birajdar@gmail.com</Text>
+                            </View>
+                            <ChevronRight size={20} color={Colors.textMuted} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleLogout}>
                             <View style={styles.menuIcon}><LogOut size={20} color={Colors.error} /></View>
                             <Text style={[Typography.body, styles.menuText, { color: Colors.error }]}>Log Out</Text>
                         </TouchableOpacity>

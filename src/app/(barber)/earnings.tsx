@@ -26,16 +26,32 @@ export default function EarningsScreen() {
 
     const totalEarnings = earnings.reduce((sum, e) => sum + e.amount, 0);
 
-    // Very simple mocked bar chart data taking last 7 days logically
-    const mockChartData = [
-        { day: 'M', h: 40 },
-        { day: 'T', h: 80 },
-        { day: 'W', h: 60 },
-        { day: 'T', h: 100 },
-        { day: 'F', h: 120 },
-        { day: 'S', h: 150 },
-        { day: 'S', h: 90 },
-    ];
+    // Calculate real chart data from earnings
+    const getChartData = () => {
+        const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+        const data = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
+
+        const now = new Date();
+        const firstDayOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+
+        earnings.forEach(e => {
+            const edate = new Date(e.date);
+            if (edate >= firstDayOfWeek) {
+                const dayIndex = edate.getDay();
+                data[dayIndex] += e.amount;
+            }
+        });
+
+        const max = Math.max(...data, 100);
+        return data.map((val, i) => ({
+            day: days[i],
+            h: (val / max) * 120 // max height 120
+        }));
+    };
+
+    const chartData = getChartData();
+    // Shift so M is first if that was intended (currently data is Sun-Sat)
+    const displayData = [...chartData.slice(1), chartData[0]];
 
     return (
         <View style={styles.container}>
@@ -52,7 +68,7 @@ export default function EarningsScreen() {
                     <Text style={[Typography.h4, { color: Colors.text, marginBottom: Spacing.xl }]}>This Week</Text>
                     <View style={styles.chartWrapper}>
                         <Svg height="150" width="100%">
-                            {mockChartData.map((d, i) => (
+                            {displayData.map((d, i) => (
                                 <View key={i}>
                                     <Rect
                                         x={(i * 100 / 7) + '%'}
@@ -67,7 +83,7 @@ export default function EarningsScreen() {
                             <Line x1="0" y1="130" x2="100%" y2="130" stroke={Colors.border} strokeWidth="1" />
                         </Svg>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 5, marginTop: 5 }}>
-                            {mockChartData.map((d, i) => <Text key={i} style={{ color: Colors.textMuted, fontSize: 10 }}>{d.day}</Text>)}
+                            {displayData.map((d, i) => <Text key={i} style={{ color: Colors.textMuted, fontSize: 10 }}>{d.day}</Text>)}
                         </View>
                     </View>
                 </Card>

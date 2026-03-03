@@ -49,8 +49,8 @@ export default function ShopDetailScreen() {
                     setServices(shopServices);
                     setBarbers(shopBarbers);
                 }
-            } catch (e) {
-                console.error('Error fetching shop details:', e);
+            } catch {
+                // silently handled — not-found UI shown below
             } finally {
                 setIsLoading(false);
             }
@@ -130,7 +130,7 @@ export default function ShopDetailScreen() {
                     </View>
 
                     <View style={styles.ratingRow}>
-                        <StarRating rating={1} size={16} />
+                        <StarRating rating={shop?.rating || 0} size={16} />
                         <Text style={[Typography.body, { color: Colors.text, marginLeft: Spacing.xs }]}>
                             {formatRating(shop?.rating || 0)}
                         </Text>
@@ -159,6 +159,24 @@ export default function ShopDetailScreen() {
                             {shop?.phone}
                         </Text>
                     </View>
+
+                    {shop?.openingHours && (
+                        <View style={{ marginTop: Spacing.md, padding: Spacing.md, backgroundColor: Colors.surfaceElevated, borderRadius: 8 }}>
+                            <Text style={[Typography.h4, { marginBottom: Spacing.sm }]}>Working Hours</Text>
+                            {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => {
+                                const hours = shop.openingHours?.[day as keyof typeof shop.openingHours];
+                                if (typeof hours !== 'object') return null;
+                                return (
+                                    <View key={day} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                        <Text style={[Typography.bodySmall, { color: Colors.textSecondary, textTransform: 'capitalize' }]}>{day}</Text>
+                                        <Text style={[Typography.bodySmall, { color: hours.isClosed ? Colors.error : Colors.text }]}>
+                                            {!hours.isClosed ? `${hours.open} - ${hours.close}` : 'Closed'}
+                                        </Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    )}
 
                     <View style={styles.buttonRow}>
                         <Button label="Message Shop" variant="outline" onPress={startChat} style={{ flex: 1, marginRight: Spacing.sm }} />

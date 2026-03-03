@@ -104,10 +104,10 @@ export default function RegisterScreen() {
 
             await Promise.all(promises);
             await authService.logout();
-            showToast({ message: 'Registration successful! Verification email sent.', type: 'info' });
+            showToast({ message: 'Registration successful! Check your email to verify.', type: 'info' });
             router.replace('/(auth)/login');
         } catch (e: any) {
-            showToast({ message: getFirebaseErrorMessage(e.code), type: 'error' });
+            showToast({ message: getFirebaseErrorMessage(e?.code ?? ''), type: 'error' });
             setIsLoading(false);
         }
     };

@@ -35,8 +35,8 @@ export default function ExploreScreen() {
                 const results = await shopService.getApprovedShops();
                 setShops(results);
             }
-        } catch (e) {
-            console.error(e);
+        } catch {
+            // silently handled — empty state shown
         } finally {
             setIsLoading(false);
         }

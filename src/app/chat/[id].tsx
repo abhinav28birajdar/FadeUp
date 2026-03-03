@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, Text } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, StyleSheet, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 import { Colors } from '../../constants/colors';
 import { Spacing } from '../../constants/spacing';
 import { ChatMessage, ChatRoom } from '../../types/firestore.types';
@@ -19,11 +21,32 @@ export default function ChatRoomScreen() {
     const { user } = useAuthContext();
     const { pickImage } = useImagePicker();
     const insets = useSafeAreaInsets();
+    const flatListRef = useRef<FlatList>(null);
 
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [text, setText] = useState('');
     const [partnerName, setPartnerName] = useState('Chat');
+    const [recipientId, setRecipientId] = useState('');
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+    // Fetch room info to get partner name and recipientId
+    useEffect(() => {
+        if (!user || !roomId) return;
+        const fetchRoom = async () => {
+            try {
+                const snap = await getDoc(doc(db, 'chatRooms', roomId));
+                if (snap.exists()) {
+                    const room = snap.data() as ChatRoom;
+                    const pId = room.participantIds.find((pid) => pid !== user.uid) || '';
+                    setRecipientId(pId);
+                    setPartnerName(room.participantNames[pId] || 'Chat');
+                }
+            } catch {
+                // silently fail — partner name defaults to 'Chat'
+            }
+        };
+        fetchRoom();
+    }, [roomId, user]);
 
     useEffect(() => {
         if (!user) return;
@@ -31,29 +54,37 @@ export default function ChatRoomScreen() {
             setMessages(data);
         });
 
-        chatService.markMessagesRead(roomId, user.uid);
+        chatService.markMessagesRead(roomId, user.uid).catch(() => null);
 
         return () => unsub();
     }, [roomId, user]);
 
-    // Simple focus listener mock
+    // Mark read whenever messages arrive
+    const markRead = useCallback(() => {
+        if (user) chatService.markMessagesRead(roomId, user.uid).catch(() => null);
+    }, [roomId, user]);
+
     useEffect(() => {
-        if (!user) return;
-        chatService.markMessagesRead(roomId, user.uid);
-    }, [user, messages.length]);
+        markRead();
+    }, [messages.length, markRead]);
 
     const handleSend = async () => {
         if (!user) return;
 
         if (selectedImage) {
-            await chatService.sendImageMessage(roomId, user.uid, user.displayName, selectedImage);
+            try {
+                await chatService.sendImageMessage(roomId, user.uid, user.displayName, selectedImage, recipientId);
+            } catch { /* handled gracefully */ }
             setSelectedImage(null);
             return;
         }
 
-        if (text.trim()) {
-            await chatService.sendMessage(roomId, user.uid, user.displayName, text.trim());
+        const trimmed = text.trim();
+        if (trimmed) {
             setText('');
+            try {
+                await chatService.sendMessage(roomId, user.uid, user.displayName, trimmed, recipientId);
+            } catch { /* handled gracefully */ }
         }
     };
 
@@ -73,6 +104,7 @@ export default function ChatRoomScreen() {
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 <FlatList
+                    ref={flatListRef}
                     data={messages}
                     keyExtractor={(item) => item.id || Math.random().toString()}
                     contentContainerStyle={styles.list}

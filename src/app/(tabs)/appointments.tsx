@@ -22,39 +22,28 @@ export default function AppointmentsScreen() {
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    const loadBookings = useCallback(async () => {
-        if (!user) return;
-        setIsLoading(true);
-        try {
-            const data = await bookingService.getCustomerBookings(user.uid);
-            setBookings(data);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [user]);
-
+    // Real-time listener for live booking updates
     useEffect(() => {
-        loadBookings();
-    }, [loadBookings]);
+        if (!user) return;
+        const unsub = bookingService.subscribeToCustomerBookings(user.uid, (data) => {
+            setBookings(data);
+            setIsLoading(false);
+        });
+        return () => unsub();
+    }, [user?.uid]);
 
-    const filteredBookings = bookings.filter(b => {
+    const filteredBookings = bookings.filter((b) => {
         if (activeTab === 'upcoming') return ['pending', 'confirmed', 'in_progress'].includes(b.status);
         if (activeTab === 'past') return b.status === 'completed';
         if (activeTab === 'cancelled') return ['cancelled', 'no_show'].includes(b.status);
         return false;
     });
 
-    const handleAction = (booking: Booking) => {
-        // Determine action based on status
+    const handleAction = useCallback((booking: Booking) => {
         if (['pending', 'confirmed'].includes(booking.status)) {
-            // Cancel logic
-            bookingService.cancelBooking(booking.id).then(loadBookings);
-        } else if (booking.status === 'completed') {
-            // Review logic
+            bookingService.cancelBooking(booking.id);
         }
-    };
+    }, []);
 
     const getActionLabel = (status: string) => {
         if (['pending', 'confirmed'].includes(status)) return 'Cancel';
@@ -99,8 +88,8 @@ export default function AppointmentsScreen() {
                     !isLoading ? (
                         <EmptyState
                             icon={<Calendar size={48} color={Colors.textMuted} />}
-                            title={`No ${activeTab} bookings`}
-                            description="You don't have any appointments in this category."
+                            title="No bookings"
+                            description={activeTab === 'upcoming' ? "You have no upcoming appointments." : "Nothing here yet."}
                         />
                     ) : null
                 )}
@@ -110,28 +99,9 @@ export default function AppointmentsScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
-    tabBar: {
-        flexDirection: 'row',
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-        paddingHorizontal: Spacing.xl,
-    },
-    tab: {
-        flex: 1,
-        paddingVertical: Spacing.md,
-        alignItems: 'center',
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
-    },
-    activeTab: {
-        borderBottomColor: Colors.primary,
-    },
-    list: {
-        padding: Spacing.xl,
-        flexGrow: 1,
-    },
+    container: { flex: 1, backgroundColor: Colors.background },
+    tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border },
+    tab: { flex: 1, paddingVertical: Spacing.md, alignItems: 'center' },
+    activeTab: { borderBottomWidth: 2, borderBottomColor: Colors.primary },
+    list: { padding: Spacing.xl, flexGrow: 1 },
 });

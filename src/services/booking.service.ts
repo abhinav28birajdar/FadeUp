@@ -1,4 +1,7 @@
-import { collection, doc, getDoc, getDocs, addDoc, updateDoc, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import {
+    collection, doc, getDoc, getDocs, addDoc, updateDoc,
+    onSnapshot, query, where, orderBy, writeBatch,
+} from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Booking, BookingStatus, QueueEntry } from '../types/firestore.types';
 
@@ -20,10 +23,10 @@ export const bookingService = {
             bookingId: docRef.id,
             customerId: data.customerId,
             customerName: data.customerName,
-            customerPhotoURL: null, // this will be populated if needed
+            customerPhotoURL: null,
             serviceName: data.serviceName,
-            position: data.queuePosition || 0,
-            estimatedWaitMinutes: 0,
+            position: data.queuePosition ?? 0,
+            estimatedWaitMinutes: data.serviceDuration ?? 0,
             status: 'waiting',
             arrivedAt: now,
         };
@@ -34,11 +37,10 @@ export const bookingService = {
     getCustomerBookings: async (customerId: string) => {
         const q = query(bookingsColl, where('customerId', '==', customerId), orderBy('scheduledAt', 'desc'));
         const snap = await getDocs(q);
-        return snap.docs.map(d => ({ id: d.id, ...d.data() } as Booking));
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Booking));
     },
 
     getShopBookings: async (shopId: string, date: string) => {
-        // simple matching query for day start and end
         const start = new Date(date);
         start.setHours(0, 0, 0, 0);
         const end = new Date(date);
@@ -51,29 +53,49 @@ export const bookingService = {
             where('scheduledAt', '<=', end.toISOString())
         );
         const snap = await getDocs(q);
-        return snap.docs.map(d => ({ id: d.id, ...d.data() } as Booking));
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Booking));
+    },
+
+    subscribeToCustomerBookings: (customerId: string, callback: (bookings: Booking[]) => void) => {
+        const q = query(bookingsColl, where('customerId', '==', customerId), orderBy('scheduledAt', 'desc'));
+        return onSnapshot(q, snap => {
+            callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Booking)));
+        });
     },
 
     updateBookingStatus: (id: string, status: BookingStatus) => {
-        return updateDoc(doc(db, 'bookings', id), { status, updatedAt: new Date().toISOString() });
+        return updateDoc(doc(db, 'bookings', id), {
+            status,
+            updatedAt: new Date().toISOString(),
+        });
     },
 
     subscribeToBooking: (id: string, callback: (b: Booking | null) => void) => {
-        return onSnapshot(doc(db, 'bookings', id), snap => {
+        return onSnapshot(doc(db, 'bookings', id), (snap) => {
             if (snap.exists()) callback({ id: snap.id, ...snap.data() } as Booking);
             else callback(null);
         });
     },
 
     cancelBooking: async (id: string) => {
-        await bookingService.updateBookingStatus(id, 'cancelled');
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'bookings', id), {
+            status: 'cancelled' as BookingStatus,
+            updatedAt: new Date().toISOString(),
+        });
+
         const qSnap = await getDocs(query(queueColl, where('bookingId', '==', id)));
-        qSnap.docs.forEach(d => updateDoc(d.ref, { status: 'cancelled' }));
+        qSnap.docs.forEach((d) => {
+            batch.update(d.ref, { status: 'cancelled' });
+        });
+
+        await batch.commit();
     },
 
     getBookingById: async (id: string) => {
         const snap = await getDoc(doc(db, 'bookings', id));
         if (snap.exists()) return { id: snap.id, ...snap.data() } as Booking;
         return null;
-    }
+    },
+
 };

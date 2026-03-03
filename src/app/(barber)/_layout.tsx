@@ -53,6 +53,41 @@ export default function BarberTabsLayout() {
                     tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
                 }}
             />
+            <Tabs.Screen
+                name="services"
+                options={{
+                    href: null,
+                    title: 'Services & Pricing',
+                }}
+            />
+            <Tabs.Screen
+                name="hours"
+                options={{
+                    href: null,
+                    title: 'Working Hours',
+                }}
+            />
+            <Tabs.Screen
+                name="shop-details"
+                options={{
+                    href: null,
+                    title: 'Shop Details',
+                }}
+            />
+            <Tabs.Screen
+                name="security"
+                options={{
+                    href: null,
+                    title: 'Security',
+                }}
+            />
+            <Tabs.Screen
+                name="wallet"
+                options={{
+                    href: null,
+                    title: 'Wallet',
+                }}
+            />
         </Tabs>
     );
 }

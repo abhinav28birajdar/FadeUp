@@ -1,4 +1,7 @@
-import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, orderBy, getDocs } from 'firebase/firestore';
+import {
+    collection, doc, addDoc, updateDoc, onSnapshot,
+    query, where, orderBy, getDocs, runTransaction, increment,
+} from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { ChatRoom, ChatMessage } from '../types/firestore.types';
@@ -62,13 +65,19 @@ export const chatService = {
     },
 
     subscribeToMessages: (roomId: string, callback: (messages: ChatMessage[]) => void) => {
-        const q = query(collection(db, `chatRooms/${roomId}/messages`), orderBy('createdAt', 'asc'));
+        const q = query(collection(db, `chatRooms/${roomId}/messages`), orderBy('createdAt', 'desc'));
         return onSnapshot(q, (snap) => {
             callback(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMessage)));
         });
     },
 
-    sendMessage: async (roomId: string, senderId: string, senderName: string, text: string): Promise<void> => {
+    sendMessage: async (
+        roomId: string,
+        senderId: string,
+        senderName: string,
+        text: string,
+        recipientId: string
+    ): Promise<void> => {
         const messagesRef = collection(db, `chatRooms/${roomId}/messages`);
         const now = new Date().toISOString();
 
@@ -83,17 +92,21 @@ export const chatService = {
         });
 
         const roomRef = doc(db, 'chatRooms', roomId);
-        // Real implementation would safely increment the other participant's unread score 
-        // using a transaction or known target id, for now we will just use a generic update.
         await updateDoc(roomRef, {
             lastMessage: text,
             lastMessageAt: now,
             lastSenderId: senderId,
-            [`unreadCount.${senderId === 'TODO' ? 'partnerId' : 'default'}`]: 1, // Will be fixed below
+            [`unreadCount.${recipientId}`]: increment(1),
         });
     },
 
-    sendImageMessage: async (roomId: string, senderId: string, senderName: string, imageUri: string): Promise<void> => {
+    sendImageMessage: async (
+        roomId: string,
+        senderId: string,
+        senderName: string,
+        imageUri: string,
+        recipientId: string
+    ): Promise<void> => {
         const response = await fetch(imageUri);
         const blob = await response.blob();
         const storageRef = ref(storage, `chat/${roomId}/${Date.now()}.jpg`);
@@ -118,6 +131,7 @@ export const chatService = {
             lastMessage: '[Photo]',
             lastMessageAt: now,
             lastSenderId: senderId,
+            [`unreadCount.${recipientId}`]: increment(1),
         });
     },
 

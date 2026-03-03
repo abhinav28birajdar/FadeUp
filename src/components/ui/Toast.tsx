@@ -53,7 +53,9 @@ export function Toast() {
                 )
             );
         }
-    }, [toast]);
+    // opacity and translateY are Reanimated shared values — stable refs, no dep needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [toast, hideToast, insets.top]);
 
     const rStyle = useAnimatedStyle(() => ({
         opacity: opacity.value,

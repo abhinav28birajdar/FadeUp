@@ -1,16 +1,46 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /users/{userId}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+
+    function isAuthenticated() {
+      return request.auth != null;
     }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isUnder10MB() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // User profile images — owner write only, authenticated read
+    match /users/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+        && isOwner(userId)
+        && isImage()
+        && isUnder10MB();
+    }
+
+    // Shop images — authenticated read, owner-scoped write (barber/shop_owner)
     match /shops/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAuthenticated()
+        && isImage()
+        && isUnder10MB();
     }
-    match /chat/{allPaths=**} {
-      allow read, write: if request.auth != null;
+
+    // Chat attachments — participants only; images under 10 MB
+    match /chat/{roomId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+        && isImage()
+        && isUnder10MB();
     }
   }
 }

@@ -30,7 +30,7 @@ export default function ForgotPasswordScreen() {
             showToast({ message: 'Password reset email sent!', type: 'success' });
             router.back();
         } catch (e: any) {
-            showToast({ message: getFirebaseErrorMessage(e.code), type: 'error' });
+            showToast({ message: getFirebaseErrorMessage(e?.code ?? ''), type: 'error' });
         } finally {
             setIsLoading(false);
         }

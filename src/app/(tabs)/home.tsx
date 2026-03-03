@@ -5,14 +5,15 @@ import { Colors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { Spacing } from '../../constants/spacing';
 import { useAuthContext } from '../../context/AuthContext';
-import { Shop, ShopCategory } from '../../types/firestore.types';
 import { shopService } from '../../services/shop.service';
-import { Search, Bell } from 'lucide-react-native';
+import { Search, Bell, Clock } from 'lucide-react-native';
 import { useNotificationStore } from '../../store/notification.store';
-import { Input } from '../../components/ui/Input';
 import { ShopCard } from '../../components/ui/ShopCard';
+import { Card } from '../../components/ui/Card';
 import { getGreeting } from '../../utils/dateHelpers';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { bookingService } from '../../services/booking.service';
+import { Shop, ShopCategory, Booking } from '../../types/firestore.types';
 
 export default function HomeScreen() {
     const router = useRouter();
@@ -21,6 +22,7 @@ export default function HomeScreen() {
     const { unreadCount } = useNotificationStore();
 
     const [shops, setShops] = useState<Shop[]>([]);
+    const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<ShopCategory | 'all'>('all');
     const categories: (ShopCategory | 'all')[] = ['all', 'haircut', 'beard', 'coloring', 'facial', 'kids'];
@@ -29,14 +31,22 @@ export default function HomeScreen() {
         try {
             const data = await shopService.getApprovedShops();
             setShops(data);
-        } catch (e) {
-            console.error(e);
+        } catch {
+            // network or permission error — silently handled
         }
     }, []);
 
     useEffect(() => {
         loadShops();
-    }, [loadShops]);
+
+        if (user) {
+            const unsub = bookingService.subscribeToCustomerBookings(user.uid, (data) => {
+                const active = data.find(b => ['confirmed', 'in_progress'].includes(b.status));
+                setActiveBooking(active || null);
+            });
+            return () => unsub();
+        }
+    }, [user, loadShops]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -46,9 +56,9 @@ export default function HomeScreen() {
 
     const filteredShops = selectedCategory === 'all'
         ? shops
-        : shops.filter(s => s.category.includes(selectedCategory as ShopCategory));
+        : shops.filter((s) => s.category.includes(selectedCategory as ShopCategory));
 
-    const featuredShops = shops.slice(0, 5); // Just mockup logic for featured
+    const featuredShops = shops.slice(0, 5);
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -68,6 +78,34 @@ export default function HomeScreen() {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
                 showsVerticalScrollIndicator={false}
             >
+                {activeBooking && (
+                    <Card style={styles.activeBookingCard} onPress={() => router.push('/(tabs)/appointments')}>
+                        <View style={styles.activeBookingHeader}>
+                            <View style={styles.activeBadge}>
+                                <View style={styles.activeDot} />
+                                <Text style={styles.activeText}>Live Queue</Text>
+                            </View>
+                            <Text style={styles.positionText}>
+                                {activeBooking.queuePosition ? `Pos: #${activeBooking.queuePosition}` : 'Next in line'}
+                            </Text>
+                        </View>
+                        <View style={styles.activeBookingBody}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[Typography.h3, { color: Colors.text }]}>{activeBooking.shopName}</Text>
+                                <Text style={[Typography.body, { color: Colors.textSecondary }]}>
+                                    {activeBooking.serviceName} • {activeBooking.barberName}
+                                </Text>
+                            </View>
+                            <View style={styles.timeContainer}>
+                                <Clock size={16} color={Colors.primary} />
+                                <Text style={[Typography.h4, { color: Colors.primary, marginLeft: 4 }]}>
+                                    {activeBooking.status === 'in_progress' ? 'In Service' : 'Waiting'}
+                                </Text>
+                            </View>
+                        </View>
+                    </Card>
+                )}
+
                 <TouchableOpacity style={styles.searchBar} onPress={() => router.push('/(tabs)/explore')} activeOpacity={0.8}>
                     <Search size={20} color={Colors.textMuted} style={styles.searchIcon} />
                     <Text style={[Typography.body, { color: Colors.textMuted }]}>Search for barbers, styles...</Text>
@@ -90,7 +128,12 @@ export default function HomeScreen() {
                 </View>
 
                 <View style={styles.section}>
-                    <Text style={[Typography.h3, styles.sectionTitle, { color: Colors.text }]}>Featured</Text>
+                    <View style={styles.sectionHeader}>
+                        <Text style={[Typography.h3, { color: Colors.text }]}>Featured</Text>
+                        <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
+                            <Text style={[Typography.bodySmall, { color: Colors.primary }]}>See all</Text>
+                        </TouchableOpacity>
+                    </View>
                     <FlatList
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -104,9 +147,26 @@ export default function HomeScreen() {
                     />
                 </View>
 
+                <View style={[styles.section, { backgroundColor: 'rgba(200, 169, 110, 0.05)', paddingVertical: Spacing.xl }]}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={[Typography.h3, { color: Colors.text }]}>New on FadeUp</Text>
+                    </View>
+                    <FlatList
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        data={shops.slice(0, 5)}
+                        keyExtractor={(item) => `new-${item.id}`}
+                        contentContainerStyle={styles.horizontalList}
+                        renderItem={({ item }) => (
+                            <ShopCard shop={item} layout="vertical" onPress={() => router.push(`/shop/${item.id}`)} />
+                        )}
+                        ItemSeparatorComponent={() => <View style={{ width: Spacing.md }} />}
+                    />
+                </View>
+
                 <View style={styles.section}>
                     <Text style={[Typography.h3, styles.sectionTitle, { color: Colors.text }]}>Nearby Shops</Text>
-                    {filteredShops.map(shop => (
+                    {filteredShops.map((shop) => (
                         <View key={shop.id} style={{ marginBottom: Spacing.md }}>
                             <ShopCard shop={shop} layout="horizontal" onPress={() => router.push(`/shop/${shop.id}`)} />
                         </View>
@@ -194,11 +254,70 @@ const styles = StyleSheet.create({
     section: {
         marginBottom: Spacing.xl,
     },
-    sectionTitle: {
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginHorizontal: Spacing.xl,
+        marginBottom: Spacing.md,
+    },
+    sectionTitle: {
         marginBottom: Spacing.md,
     },
     horizontalList: {
         paddingHorizontal: Spacing.xl,
+    },
+    activeBookingCard: {
+        marginHorizontal: Spacing.xl,
+        marginTop: Spacing.md,
+        marginBottom: Spacing.lg,
+        padding: Spacing.lg,
+        backgroundColor: Colors.surface,
+        borderColor: Colors.primary,
+        borderWidth: 1,
+        borderRadius: Spacing.borderRadius.lg,
+    },
+    activeBookingHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: Spacing.md,
+    },
+    activeBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(200, 169, 110, 0.1)',
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: 4,
+        borderRadius: 4,
+    },
+    activeDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: Colors.primary,
+        marginRight: 6,
+    },
+    activeText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: Colors.primary,
+        textTransform: 'uppercase',
+    },
+    positionText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: Colors.textSecondary,
+    },
+    activeBookingBody: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    timeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.surfaceElevated,
+        padding: Spacing.sm,
+        borderRadius: 8,
     },
 });

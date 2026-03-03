@@ -21,6 +21,12 @@ export const earningsService = {
         return snap.docs.map(d => ({ id: d.id, ...d.data() } as Earning));
     },
 
+    getBarberEarnings: async (barberId: string) => {
+        const q = query(collection(db, 'earnings'), where('barberId', '==', barberId), orderBy('date', 'desc'));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() } as Earning));
+    },
+
     createEarningRecord: (data: Omit<Earning, 'id'>) => {
         return addDoc(collection(db, 'earnings'), data);
     }

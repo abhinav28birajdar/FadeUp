@@ -31,16 +31,10 @@ export default function LoginScreen() {
 
         try {
             setIsLoading(true);
-            const userCred = await authService.login(email.trim(), password);
-            if (!userCred.user.emailVerified) {
-                await authService.logout();
-                showToast({ message: 'Please verify your email before logging in.', type: 'error' });
-                setIsLoading(false);
-                return;
-            }
+            await authService.login(email.trim(), password);
             // navigation handled by AuthContext observer
         } catch (e: any) {
-            showToast({ message: getFirebaseErrorMessage(e.code), type: 'error' });
+            showToast({ message: getFirebaseErrorMessage(e?.code ?? ''), type: 'error' });
             setIsLoading(false);
         }
     };

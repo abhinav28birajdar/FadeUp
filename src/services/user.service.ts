@@ -8,8 +8,8 @@ export const userService = {
         return setDoc(docRef, {
             ...data,
             uid,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
         });
     },
 
@@ -23,7 +23,7 @@ export const userService = {
 
     updateProfile: (uid: string, data: Partial<UserProfile>) => {
         const docRef = doc(db, 'users', uid);
-        return updateDoc(docRef, { ...data, updatedAt: new Date().toISOString() });
+        return updateDoc(docRef, { ...data, updatedAt: serverTimestamp() });
     },
 
     subscribeToProfile: (uid: string, callback: (data: UserProfile | null) => void) => {

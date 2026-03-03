@@ -57,7 +57,7 @@ export const ShopCard = React.memo(({ shop, onPress, layout = 'vertical' }: Shop
                 <View style={styles.header}>
                     <Text style={[Typography.h4, { color: Colors.text }]} numberOfLines={1}>{shop.name}</Text>
                     <View style={styles.ratingContainer}>
-                        <StarRating rating={1} size={14} />
+                        <StarRating rating={shop.rating} size={14} />
                         <Text style={[Typography.caption, { color: Colors.text, marginLeft: 4 }]}>
                             {formatRating(shop.rating)} ({shop.reviewCount})
                         </Text>
