@@ -9,7 +9,9 @@
   &nbsp;&nbsp;
   <img src="https://raw.githubusercontent.com/expo/expo/main/docs/static/images/logo.png" height="30" alt="Expo" />
 </p>
+## 🎥 Live Application Demo
 
+https://github.com/user-attachments/assets/afcfd69b-59fb-419f-ba21-5406b2daa505
 ---
 
 **FadeUp** is a high-performance, production-ready platform serving Customers, Barbers, and Admins. Built from the ground up to provide a seamless, real-time experience in the urban grooming space.
