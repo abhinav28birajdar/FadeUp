@@ -54,7 +54,19 @@ export default function SignUpBarberScreen() {
     const handleSubmit = async () => {
         setIsLoading(true);
         try {
-            await signUp('barber', { fullName: personalInfo.name, email: personalInfo.email, ...shopInfo });
+            await signUp('barber', {
+                fullName: personalInfo.name,
+                email: personalInfo.email,
+                password: personalInfo.password,
+                phone: personalInfo.phone,
+                shopName: shopInfo.name,
+                shopCategory: shopInfo.category,
+                shopDescription: shopInfo.description,
+                address: locationInfo.address,
+                city: locationInfo.city,
+                zip: locationInfo.zip,
+                hours: hoursInfo
+            });
         } catch (error) {
             console.error(error);
         } finally {

@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { router } from 'expo-router';
+import { User as FirebaseUser } from 'firebase/auth';
+import { signIn as firebaseSignIn, signUp as firebaseSignUp, logout as firebaseLogout, onAuthStateChange, getUserProfile, UserProfile } from '../auth';
 
 type UserType = 'customer' | 'barber' | null;
 
-interface User {
+interface User extends Partial<UserProfile> {
     id: string;
     name: string;
     email: string;
@@ -24,72 +26,108 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
-// Mock user data
-const MOCK_CUSTOMER: User = {
-    id: 'cust_123',
-    name: 'Abhinav Birajdar',
-    email: 'abhinavbirajdar28@gmail.com',
-    type: 'customer',
-    avatar: 'https://i.pravatar.cc/150?u=abhinav',
-};
-
-const MOCK_BARBER: User = {
-    id: 'barb_456',
-    name: 'Master Barber',
-    email: 'barber@fadeup.com',
-    type: 'barber',
-    avatar: 'https://i.pravatar.cc/150?u=barber',
-};
-
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [userType, setUserType] = useState<UserType>(null);
 
     useEffect(() => {
-        // Simulate checking local storage
-        setTimeout(() => setIsLoading(false), 1000);
-    }, []);
+        const unsubscribe = onAuthStateChange(async (firebaseUser: FirebaseUser | null) => {
+            try {
+                if (firebaseUser) {
+                    const userProfile = await getUserProfile(firebaseUser.uid);
+                    if (userProfile) {
+                        const mappedUser: User = {
+                            id: firebaseUser.uid,
+                            name: userProfile.displayName || firebaseUser.email?.split('@')[0] || 'User',
+                            email: firebaseUser.email || '',
+                            type: (userProfile.role as UserType) || userType || 'customer',
+                            avatar: userProfile.photoURL,
+                            ...userProfile
+                        };
+                        setUser(mappedUser);
+                        if (userProfile.role) {
+                            setUserType(userProfile.role as UserType);
+                        }
+                    }
+                } else {
+                    setUser(null);
+                    setUserType(null);
+                }
+            } catch (error) {
+                console.error('Auth state change error:', error);
+                setUser(null);
+            } finally {
+                setIsLoading(false);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [userType]);
 
     const signIn = async (email: string, pass: string) => {
         setIsLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        try {
+            const credential = await firebaseSignIn(email, pass);
+            const userProfile = await getUserProfile(credential.user.uid);
 
-        if (email === 'abhinavbirajdar28@gmail.com' && pass === '12345678') {
-            const type = userType || 'customer';
-            const loggedInUser = type === 'customer' ? MOCK_CUSTOMER : MOCK_BARBER;
-            setUser(loggedInUser);
+            const type = (userProfile?.role as UserType) || userType || 'customer';
+            const mappedUser: User = {
+                id: credential.user.uid,
+                name: userProfile?.displayName || email.split('@')[0],
+                email: email,
+                type: type,
+                avatar: userProfile?.photoURL,
+                ...userProfile
+            };
+            setUser(mappedUser);
+            setUserType(type);
             router.replace(type === 'customer' ? '/(tabs)/home' : '/(barber)/dashboard');
-        } else if (email === 'barber@test.com' && pass === '12345678') {
-            setUser(MOCK_BARBER);
-            router.replace('/(barber)/dashboard');
-        } else {
-            alert('Invalid credentials. Use abhinavbirajdar28@gmail.com / 12345678');
+        } catch (error) {
+            console.error('Sign in error:', error);
+            alert(error instanceof Error ? error.message : 'Sign in failed. Check your credentials.');
+        } finally {
+            setIsLoading(false);
         }
-        setIsLoading(false);
     };
 
     const signUp = async (type: UserType, data: any) => {
         setIsLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        const newUser: User = {
-            id: Math.random().toString(),
-            name: data.fullName || 'New User',
-            email: data.email,
-            type: type,
-        };
-        setUser(newUser);
-        router.replace(type === 'customer' ? '/(tabs)/home' : '/(barber)/dashboard');
-        setIsLoading(false);
+        try {
+            const { fullName, email, password, ...rest } = data;
+            const credential = await firebaseSignUp(email, password, fullName, type as any, rest);
+
+            const mappedUser: User = {
+                id: credential.user.uid,
+                name: fullName || credential.user.email?.split('@')[0] || 'New User',
+                email: credential.user.email || '',
+                type: type,
+                ...rest
+            };
+            setUser(mappedUser);
+            setUserType(type);
+            router.replace(type === 'customer' ? '/(tabs)/home' : '/(barber)/dashboard');
+        } catch (error) {
+            console.error('Sign up error:', error);
+            alert(error instanceof Error ? error.message : 'Sign up failed. Try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const signOut = async () => {
         setIsLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setUser(null);
-        setUserType(null);
-        router.replace('/onboarding/welcome');
-        setIsLoading(false);
+        try {
+            await firebaseLogout();
+            setUser(null);
+            setUserType(null);
+            router.replace('/onboarding/welcome');
+        } catch (error) {
+            console.error('Sign out error:', error);
+            alert(error instanceof Error ? error.message : 'Sign out failed.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -111,3 +149,4 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
+
