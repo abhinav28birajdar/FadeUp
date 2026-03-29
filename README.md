@@ -6,7 +6,13 @@
 
 ## 🚀 Status: Active Development
 **FadeUp** is a full-stack appointment management platform built with **React Native (Expo)** and **Supabase**. We are actively building the core business logic, database relationships, and distinct workflows for both barbers and clients.
+---
 
+## 🎥 Live Application Demo
+
+https://github.com/user-attachments/assets/afcfd69b-59fb-419f-ba21-5406b2daa505
+
+---
 ## 🛠️ Tech Stack
 
 <p align="left">
